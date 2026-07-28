@@ -179,12 +179,49 @@ GET /api/users/ping
 5. 停止 User Service 后，同一请求返回 HTTP 503。
 6. `mvn verify` 与 `docker compose config` 均成功。
 
-## 10. 交付边界
+## 10. AI 技术路线与接入边界
+
+AI 能力分为确定性优化、实时推荐和大模型辅助三层：
+
+### 10.1 智能排班
+
+- 后续建立独立的 Java `ai-scheduler` 微服务，使用 Google OR-Tools CP-SAT 求解器。
+- `schedule-service` 负责任务编排、数据准备、状态管理和结果持久化。
+- `ai-scheduler` 负责时间、技能、人数和距离等硬约束求解，以及匹配度、满意度、距离、成本和岗位覆盖率等目标优化。
+- 算法计算与普通业务服务隔离，以便单独设置超时、并发限制和弹性扩容。
+
+### 10.2 实时调度
+
+- `dispatch-service` 先通过 Redis GEO 查询附近人员。
+- 规则层过滤非空闲、技能不符、时间冲突和不可达人员。
+- 评分层对剩余候选人排序，并通过 RocketMQ 发送调度任务。
+- 后续可利用任务接受率、到岗速度和历史评分训练排序模型，但 MVP 使用可解释的加权评分。
+
+### 10.3 DeepSeek 大模型
+
+DeepSeek 用于排班解释、异常分析、通知生成和自然语言交互，不直接替代约束求解器，也不能绕过业务校验修改排班结果。
+
+- API 基础地址使用 `https://api.deepseek.com`。
+- 模型使用 `deepseek-v4-pro`。
+- 大模型返回结构化 JSON，后端完成 Schema 校验、超时控制、重试边界和敏感信息过滤。
+- API Key 仅从环境变量读取，不写入代码、日志或版本库。
+- 当前 `.env` 中错误的 API 域名和模型拼写在实施阶段修正。
+
+### 10.4 Milvus
+
+Milvus 后续用于历史调度案例、活动规则和知识库的向量检索，为大模型提供 RAG 上下文。MVP 基础架构和首版排班算法不依赖 Milvus，避免提前引入无使用方的基础设施。
+
+本阶段不创建空的 `ai-scheduler` 模块，但工程命名、服务发现和 Gateway 规则不得占用其未来服务名与路由空间。
+
+## 11. 交付边界
 
 本阶段完成后，下一阶段可直接在 `user-service` 中实现注册、登录、JWT 和 RBAC，而无需重新搭建微服务基础设施。其他业务服务应在各自开发阶段按同一约定增加，不在本阶段一次性创建空模块。
 
-## 11. 设计依据
+## 12. 设计依据
 
 - Spring Cloud Alibaba 2025.x 版本兼容关系：<https://sca.aliyun.com/en/docs/2025.x/overview/version-explain/>
 - Spring Cloud Gateway 参考文档：<https://docs.spring.io/spring-cloud-gateway/reference/>
 - Nacos Docker 快速开始：<https://nacos.io/en/docs/latest/quickstart/quick-start-docker/>
+- OR-Tools Java 与优化问题说明：<https://developers.google.com/optimization/introduction/java>
+- OR-Tools 员工排班示例：<https://developers.google.com/optimization/scheduling/employee_scheduling>
+- DeepSeek API 接入说明：<https://api-docs.deepseek.com/guides/function_calling/>
