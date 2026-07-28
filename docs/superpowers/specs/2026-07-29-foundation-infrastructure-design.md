@@ -20,8 +20,8 @@
 
 | 组件 | 版本或约束 |
 |------|------------|
-| Java | 21 |
-| Maven | 3.9+ |
+| Java | 17 |
+| Maven | 3.6.3 |
 | Spring Boot | 3.5.0 |
 | Spring Cloud | 2025.0.0 |
 | Spring Cloud Alibaba | 2025.0.0.0 |
@@ -31,7 +31,7 @@
 | Redis | 7.4 |
 | Docker Compose | Compose Specification |
 
-该组合采用 Spring Cloud Alibaba 官方 2025.0.x 兼容矩阵。依赖版本统一由根 Maven 工程的 BOM 管理，子模块不得自行覆盖 Spring 生态组件版本。
+该组合采用 Spring Cloud Alibaba 官方 2025.0.x 兼容矩阵。Spring Boot 3.5 支持 Java 17，并明确支持 Maven 3.6.3 及以上版本。依赖版本统一由根 Maven 工程的 BOM 管理，子模块不得自行覆盖 Spring 生态组件版本。
 
 ## 3. 工程结构
 
@@ -166,7 +166,9 @@ GET /api/users/ping
 
 ### 9.2 配置验证
 
-- `docker compose config` 必须成功。
+- 本机使用 Java 17 和 Maven 3.6.3 完成编译与自动化测试。
+- Docker Compose 的配置检查、容器启动和健康检查在指定的云端开发服务器执行。
+- 云端执行 `docker compose config` 必须成功。
 - `.env.example` 包含 Compose 和应用启动所需的全部变量。
 - 仓库忽略规则必须确认真实 `.env` 不会进入版本控制。
 
