@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+    PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.volunteer.platform.activity.dao.PositionDAO">
+
+    <resultMap id="PositionResultMap" type="com.volunteer.platform.activity.entity.PositionDO">
+        <id column="id" property="id"/>
+        <result column="activity_id" property="activityId"/>
+        <result column="area_id" property="areaId"/>
+        <result column="name" property="name"/>
+        <result column="need_count" property="needCount"/>
+        <result column="skill_requirement" property="skillRequirement"/>
+        <result column="salary" property="salary"/>
+        <result column="start_time" property="startTime"/>
+        <result column="end_time" property="endTime"/>
+    </resultMap>
+
+    <sql id="BaseColumnList">
+        id, activity_id, area_id, name, need_count, skill_requirement, salary, start_time, end_time
+    </sql>
+
+    <insert id="insert" parameterType="com.volunteer.platform.activity.entity.PositionDO"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO position (
+            activity_id, area_id, name, need_count, skill_requirement, salary, start_time, end_time
+        ) VALUES (
+            #{activityId}, #{areaId}, #{name}, #{needCount}, #{skillRequirement}, #{salary}, #{startTime}, #{endTime}
+        )
+    </insert>
+
+    <update id="updateById" parameterType="com.volunteer.platform.activity.entity.PositionDO">
+        UPDATE position
+        SET activity_id = #{activityId},
+            area_id = #{areaId},
+            name = #{name},
+            need_count = #{needCount},
+            skill_requirement = #{skillRequirement},
+            salary = #{salary},
+            start_time = #{startTime},
+            end_time = #{endTime}
+        WHERE id = #{id}
+          AND is_deleted = 0
+    </update>
+
+    <select id="selectById" resultMap="PositionResultMap">
+        SELECT <include refid="BaseColumnList"/>
+        FROM position
+        WHERE id = #{id}
+          AND is_deleted = 0
+    </select>
+
+    <select id="selectByActivityId" resultMap="PositionResultMap">
+        SELECT <include refid="BaseColumnList"/>
+        FROM position
+        WHERE activity_id = #{activityId}
+          AND is_deleted = 0
+        ORDER BY start_time ASC, id ASC
+    </select>
+
+    <update id="deleteById">
+        UPDATE position
+        SET is_deleted = 1
+        WHERE id = #{id}
+          AND is_deleted = 0
+    </update>
+</mapper>

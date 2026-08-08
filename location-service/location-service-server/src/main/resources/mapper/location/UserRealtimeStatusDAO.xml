@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.volunteer.platform.location.dao.UserRealtimeStatusDAO">
+
+  <resultMap id="UserRealtimeStatusResultMap"
+             type="com.volunteer.platform.location.entity.UserRealtimeStatusDO">
+    <id column="id" property="id"/>
+    <result column="activity_id" property="activityId"/>
+    <result column="user_id" property="userId"/>
+    <result column="status" property="status"/>
+    <result column="longitude" property="longitude"/>
+    <result column="latitude" property="latitude"/>
+    <result column="last_report_time" property="lastReportTime"/>
+    <result column="distance_meter" property="distanceMeter"/>
+  </resultMap>
+
+  <insert id="upsert" parameterType="com.volunteer.platform.location.entity.UserRealtimeStatusDO">
+    INSERT INTO user_realtime_status (
+      activity_id,
+      user_id,
+      status,
+      longitude,
+      latitude,
+      last_report_time
+    ) VALUES (
+      #{activityId},
+      #{userId},
+      #{status},
+      #{longitude},
+      #{latitude},
+      #{lastReportTime}
+    )
+    ON DUPLICATE KEY UPDATE
+      status = VALUES(status),
+      longitude = VALUES(longitude),
+      latitude = VALUES(latitude),
+      last_report_time = VALUES(last_report_time),
+      is_deleted = 0
+  </insert>
+
+  <select id="selectByUserId" resultMap="UserRealtimeStatusResultMap">
+    SELECT
+      id,
+      activity_id,
+      user_id,
+      status,
+      longitude,
+      latitude,
+      last_report_time
+    FROM user_realtime_status
+    WHERE user_id = #{userId}
+      <if test="activityId != null">
+        AND activity_id = #{activityId}
+      </if>
+      AND is_deleted = 0
+    ORDER BY last_report_time DESC
+    LIMIT 1
+  </select>
+
+  <select id="selectNearby" resultMap="UserRealtimeStatusResultMap">
+    SELECT *
+    FROM (
+      SELECT
+        id,
+        activity_id,
+        user_id,
+        status,
+        longitude,
+        latitude,
+        last_report_time,
+        ROUND(
+          6371000 * 2 * ASIN(SQRT(
+            POW(SIN((RADIANS(latitude) - RADIANS(#{latitude})) / 2), 2)
+            + COS(RADIANS(#{latitude})) * COS(RADIANS(latitude))
+            * POW(SIN((RADIANS(longitude) - RADIANS(#{longitude})) / 2), 2)
+          )),
+          2
+        ) AS distance_meter
+      FROM user_realtime_status
+      WHERE activity_id = #{activityId}
+        AND status != 'OFFLINE'
+        AND is_deleted = 0
+    ) nearby
+    WHERE distance_meter &lt;= #{radiusMeter}
+    ORDER BY distance_meter ASC, last_report_time DESC
+  </select>
+</mapper>

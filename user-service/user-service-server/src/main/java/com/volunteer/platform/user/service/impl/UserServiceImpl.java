@@ -5,6 +5,10 @@ import com.volunteer.platform.common.auth.JwtTokenService;
 import com.volunteer.platform.common.exception.BusinessException;
 import com.volunteer.platform.user.client.wechat.WechatCodeSessionClient;
 import com.volunteer.platform.user.config.AdminAuthProperties;
+import com.volunteer.platform.user.constant.AdminPermissionCodes;
+import com.volunteer.platform.user.dao.AdminPermissionDAO;
+import com.volunteer.platform.user.dao.AdminRoleDAO;
+import com.volunteer.platform.user.dao.AdminUserDAO;
 import com.volunteer.platform.user.dao.UserAvailabilityDAO;
 import com.volunteer.platform.user.dao.UserDAO;
 import com.volunteer.platform.user.dao.UserSkillDAO;
@@ -14,6 +18,9 @@ import com.volunteer.platform.user.dto.RegisterUserDTO;
 import com.volunteer.platform.user.dto.SaveAvailabilityDTO;
 import com.volunteer.platform.user.dto.SaveUserSkillDTO;
 import com.volunteer.platform.user.dto.WechatLoginDTO;
+import com.volunteer.platform.user.entity.AdminPermissionDO;
+import com.volunteer.platform.user.entity.AdminRoleDO;
+import com.volunteer.platform.user.entity.AdminUserDO;
 import com.volunteer.platform.user.entity.UserAvailabilityDO;
 import com.volunteer.platform.user.entity.UserDO;
 import com.volunteer.platform.user.entity.UserSkillDO;
@@ -47,24 +54,35 @@ public class UserServiceImpl implements UserService {
     private final JwtTokenService jwtTokenService;
     private final AdminAuthProperties adminAuthProperties;
     private final WechatCodeSessionClient wechatCodeSessionClient;
+    private final AdminUserDAO adminUserDAO;
+    private final AdminRoleDAO adminRoleDAO;
+    private final AdminPermissionDAO adminPermissionDAO;
 
     public UserServiceImpl(UserDAO userDAO, UserSkillDAO userSkillDAO, UserAvailabilityDAO userAvailabilityDAO) {
         this(userDAO, userSkillDAO, userAvailabilityDAO, new JwtProperties(), new AdminAuthProperties(),
             code -> {
                 throw new BusinessException(500, "wechat code session client unavailable");
-            });
+            }, null, null, null);
     }
 
     public UserServiceImpl(UserDAO userDAO, UserSkillDAO userSkillDAO, UserAvailabilityDAO userAvailabilityDAO,
                            WechatCodeSessionClient wechatCodeSessionClient) {
         this(userDAO, userSkillDAO, userAvailabilityDAO, new JwtProperties(), new AdminAuthProperties(),
-            wechatCodeSessionClient);
+            wechatCodeSessionClient, null, null, null);
+    }
+
+    public UserServiceImpl(UserDAO userDAO, UserSkillDAO userSkillDAO, UserAvailabilityDAO userAvailabilityDAO,
+                           WechatCodeSessionClient wechatCodeSessionClient, AdminUserDAO adminUserDAO,
+                           AdminRoleDAO adminRoleDAO, AdminPermissionDAO adminPermissionDAO) {
+        this(userDAO, userSkillDAO, userAvailabilityDAO, new JwtProperties(), new AdminAuthProperties(),
+            wechatCodeSessionClient, adminUserDAO, adminRoleDAO, adminPermissionDAO);
     }
 
     @Autowired
     public UserServiceImpl(UserDAO userDAO, UserSkillDAO userSkillDAO, UserAvailabilityDAO userAvailabilityDAO,
                            JwtProperties jwtProperties, AdminAuthProperties adminAuthProperties,
-                           WechatCodeSessionClient wechatCodeSessionClient) {
+                           WechatCodeSessionClient wechatCodeSessionClient, AdminUserDAO adminUserDAO,
+                           AdminRoleDAO adminRoleDAO, AdminPermissionDAO adminPermissionDAO) {
         this.userDAO = userDAO;
         this.userSkillDAO = userSkillDAO;
         this.userAvailabilityDAO = userAvailabilityDAO;
@@ -72,6 +90,9 @@ public class UserServiceImpl implements UserService {
         this.jwtTokenService = new JwtTokenService(jwtProperties);
         this.adminAuthProperties = adminAuthProperties;
         this.wechatCodeSessionClient = wechatCodeSessionClient;
+        this.adminUserDAO = adminUserDAO;
+        this.adminRoleDAO = adminRoleDAO;
+        this.adminPermissionDAO = adminPermissionDAO;
     }
 
     @Override
@@ -88,7 +109,14 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public AuthSessionVO adminLogin(AdminLoginDTO dto) {
-        if (dto == null || !adminAuthProperties.getAccount().equals(dto.getAccount())
+        if (dto == null) {
+            throw new BusinessException(401, "invalid account or password");
+        }
+        AuthSessionVO dbSession = loginWithDatabaseAdmin(dto);
+        if (dbSession != null) {
+            return dbSession;
+        }
+        if (!adminAuthProperties.getAccount().equals(dto.getAccount())
             || !adminAuthProperties.getPassword().equals(dto.getPassword())) {
             throw new BusinessException(401, "invalid account or password");
         }
@@ -97,7 +125,39 @@ public class UserServiceImpl implements UserService {
         userVO.setUsername(adminAuthProperties.getUsername());
         userVO.setUserType(adminAuthProperties.getUserType());
         userVO.setAuthStatus(AUTHENTICATED_STATUS);
-        return issueSession(userVO);
+        userVO.setRealName(adminAuthProperties.getUsername());
+        AuthSessionVO sessionVO = issueSession(userVO);
+        sessionVO.setRoles(List.of("SUPER_ADMIN"));
+        sessionVO.setPermissions(AdminPermissionCodes.allCodes());
+        return sessionVO;
+    }
+
+    private AuthSessionVO loginWithDatabaseAdmin(AdminLoginDTO dto) {
+        if (adminUserDAO == null || adminRoleDAO == null || adminPermissionDAO == null) {
+            return null;
+        }
+        AdminUserDO adminUserDO = adminUserDAO.selectByAccount(dto.getAccount());
+        if (adminUserDO == null) {
+            return null;
+        }
+        if (!adminUserDO.getPassword().equals(dto.getPassword())) {
+            throw new BusinessException(401, "invalid account or password");
+        }
+        UserVO userVO = new UserVO();
+        userVO.setId(adminUserDO.getId());
+        userVO.setUsername(adminUserDO.getUsername());
+        userVO.setRealName(adminUserDO.getRealName());
+        userVO.setMobile(adminUserDO.getMobile());
+        userVO.setUserType(adminAuthProperties.getUserType());
+        userVO.setAuthStatus(AUTHENTICATED_STATUS);
+        AuthSessionVO sessionVO = issueSession(userVO);
+        sessionVO.setRoles(adminRoleDAO.selectByAdminId(adminUserDO.getId()).stream()
+            .map(AdminRoleDO::getRoleCode)
+            .toList());
+        sessionVO.setPermissions(adminPermissionDAO.selectByAdminId(adminUserDO.getId()).stream()
+            .map(AdminPermissionDO::getPermissionCode)
+            .toList());
+        return sessionVO;
     }
 
     @Override
@@ -165,6 +225,18 @@ public class UserServiceImpl implements UserService {
         return userDAO.selectVolunteers(query).stream()
             .map(this::toUserVO)
             .toList();
+    }
+
+    @Override
+    public void deleteVolunteer(Long id) {
+        if (id == null) {
+            throw new BusinessException(400, "user id is required");
+        }
+        UserDO oldUser = userDAO.selectById(id);
+        if (oldUser == null || !DEFAULT_USER_TYPE.equals(oldUser.getUserType())) {
+            throw new BusinessException(NOT_FOUND_CODE, "volunteer not found");
+        }
+        userDAO.deleteById(id);
     }
 
     @Override

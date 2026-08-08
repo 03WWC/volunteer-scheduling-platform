@@ -63,6 +63,12 @@ public class UserController {
         return Result.success(toUserDTO(userService.getById(id)));
     }
 
+    @PostMapping("/{id}/delete")
+    public Result<Void> deleteVolunteer(@PathVariable("id") Long id) {
+        userService.deleteVolunteer(id);
+        return Result.success();
+    }
+
     @PostMapping("/skill/save")
     public Result<UserSkillVO> saveSkill(@RequestBody SaveUserSkillDTO dto) {
         return Result.success(userService.saveSkill(dto));

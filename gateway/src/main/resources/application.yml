@@ -1,0 +1,67 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: gateway
+  main:
+    web-application-type: reactive
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR:127.0.0.1:8848}
+    gateway:
+      discovery:
+        locator:
+          enabled: false
+          lower-case-service-id: true
+      routes:
+        - id: activity-service
+          uri: lb://activity-service
+          predicates:
+            - Path=/activity/**,/area/**,/position/**
+        - id: user-service
+          uri: lb://user-service
+          predicates:
+            - Path=/user/**,/auth/**,/admin/**
+        - id: schedule-service
+          uri: lb://schedule-service
+          predicates:
+            - Path=/schedule/**
+        - id: dispatch-service
+          uri: lb://dispatch-service
+          predicates:
+            - Path=/dispatch/**
+        - id: ai-scheduler
+          uri: lb://ai-scheduler
+          predicates:
+            - Path=/ai-scheduler/**
+        - id: location-service
+          uri: lb://location-service
+          predicates:
+            - Path=/location/**
+        - id: settlement-service
+          uri: lb://settlement-service
+          predicates:
+            - Path=/settlement/**
+        - id: message-service
+          uri: lb://message-service
+          predicates:
+            - Path=/message/**
+    sentinel:
+      transport:
+        dashboard: ${SENTINEL_DASHBOARD:127.0.0.1:8858}
+
+feign:
+  sentinel:
+    enabled: true
+
+platform:
+  jwt:
+    secret: volunteer-platform-jwt-secret-2026
+    ttl: 12h
+  security:
+    public-paths:
+      - /auth/**
+      - /user/wechat/login
+      - /actuator/**

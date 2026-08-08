@@ -28,6 +28,8 @@ public interface UserService {
 
     List<UserVO> listVolunteers(UserQuery query);
 
+    void deleteVolunteer(Long id);
+
     UserSkillVO saveSkill(SaveUserSkillDTO dto);
 
     void deleteSkill(Long id, Long userId);

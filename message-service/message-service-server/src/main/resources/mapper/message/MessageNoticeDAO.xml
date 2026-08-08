@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.volunteer.platform.message.dao.MessageNoticeDAO">
+
+  <insert id="insert" parameterType="com.volunteer.platform.message.entity.MessageNoticeDO"
+          useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO message_notice (
+      receiver_id,
+      event_key,
+      notice_type,
+      title,
+      content,
+      send_channel,
+      send_status,
+      send_time,
+      is_read
+    ) VALUES (
+      #{receiverId},
+      #{eventKey},
+      #{noticeType},
+      #{title},
+      #{content},
+      #{sendChannel},
+      #{sendStatus},
+      #{sendTime},
+      #{isRead}
+    )
+  </insert>
+
+  <select id="selectById" resultType="com.volunteer.platform.message.entity.MessageNoticeDO">
+    SELECT
+      id,
+      receiver_id AS receiverId,
+      event_key AS eventKey,
+      notice_type AS noticeType,
+      title,
+      content,
+      send_channel AS sendChannel,
+      send_status AS sendStatus,
+      send_time AS sendTime,
+      is_read AS isRead
+    FROM message_notice
+    WHERE id = #{id}
+      AND is_deleted = 0
+  </select>
+
+  <select id="selectByEventKey" resultType="com.volunteer.platform.message.entity.MessageNoticeDO">
+    SELECT
+      id,
+      receiver_id AS receiverId,
+      event_key AS eventKey,
+      notice_type AS noticeType,
+      title,
+      content,
+      send_channel AS sendChannel,
+      send_status AS sendStatus,
+      send_time AS sendTime,
+      is_read AS isRead
+    FROM message_notice
+    WHERE event_key = #{eventKey}
+      AND is_deleted = 0
+  </select>
+
+  <select id="selectByReceiverId" resultType="com.volunteer.platform.message.entity.MessageNoticeDO">
+    SELECT
+      id,
+      receiver_id AS receiverId,
+      event_key AS eventKey,
+      notice_type AS noticeType,
+      title,
+      content,
+      send_channel AS sendChannel,
+      send_status AS sendStatus,
+      send_time AS sendTime,
+      is_read AS isRead
+    FROM message_notice
+    WHERE receiver_id = #{receiverId}
+      AND is_deleted = 0
+    ORDER BY id DESC
+  </select>
+
+  <update id="updateRead">
+    UPDATE message_notice
+    SET is_read = 1
+    WHERE id = #{id}
+      AND is_deleted = 0
+  </update>
+</mapper>

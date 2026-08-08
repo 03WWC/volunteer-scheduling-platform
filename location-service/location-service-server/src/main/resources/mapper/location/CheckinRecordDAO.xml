@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.volunteer.platform.location.dao.CheckinRecordDAO">
+
+  <insert id="insert" parameterType="com.volunteer.platform.location.entity.CheckinRecordDO"
+          useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO checkin_record (
+      assignment_id,
+      activity_id,
+      position_id,
+      user_id,
+      checkin_type,
+      checkin_status,
+      checkin_time,
+      longitude,
+      latitude,
+      qr_code
+    ) VALUES (
+      #{assignmentId},
+      #{activityId},
+      #{positionId},
+      #{userId},
+      #{checkinType},
+      #{checkinStatus},
+      #{checkinTime},
+      #{longitude},
+      #{latitude},
+      #{qrCode}
+    )
+  </insert>
+
+  <select id="countByAssignmentUserType" resultType="int">
+    SELECT COUNT(1)
+    FROM checkin_record
+    WHERE assignment_id = #{assignmentId}
+      AND user_id = #{userId}
+      AND checkin_type = #{checkinType}
+      AND is_deleted = 0
+  </select>
+
+  <select id="selectByActivityAndUser" resultType="com.volunteer.platform.location.entity.CheckinRecordDO">
+    SELECT
+      id,
+      assignment_id AS assignmentId,
+      activity_id AS activityId,
+      position_id AS positionId,
+      user_id AS userId,
+      checkin_type AS checkinType,
+      checkin_status AS checkinStatus,
+      checkin_time AS checkinTime,
+      longitude,
+      latitude,
+      qr_code AS qrCode
+    FROM checkin_record
+    WHERE activity_id = #{activityId}
+    <if test="userId != null">
+      AND user_id = #{userId}
+    </if>
+      AND is_deleted = 0
+    ORDER BY assignment_id ASC, checkin_time ASC
+  </select>
+</mapper>

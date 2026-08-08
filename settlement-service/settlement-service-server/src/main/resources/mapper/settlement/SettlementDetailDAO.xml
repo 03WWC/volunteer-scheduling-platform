@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.volunteer.platform.settlement.dao.SettlementDetailDAO">
+
+  <resultMap id="SettlementDetailResultMap" type="com.volunteer.platform.settlement.entity.SettlementDetailDO">
+    <id column="id" property="id"/>
+    <result column="bill_id" property="billId"/>
+    <result column="assignment_id" property="assignmentId"/>
+    <result column="position_id" property="positionId"/>
+    <result column="work_minutes" property="workMinutes"/>
+    <result column="amount" property="amount"/>
+    <result column="remark" property="remark"/>
+  </resultMap>
+
+  <insert id="insert" parameterType="com.volunteer.platform.settlement.entity.SettlementDetailDO"
+          useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO settlement_detail (
+      bill_id,
+      assignment_id,
+      position_id,
+      work_minutes,
+      amount,
+      remark
+    ) VALUES (
+      #{billId},
+      #{assignmentId},
+      #{positionId},
+      #{workMinutes},
+      #{amount},
+      #{remark}
+    )
+  </insert>
+
+  <select id="selectByBillId" resultMap="SettlementDetailResultMap">
+    SELECT
+      id,
+      bill_id,
+      assignment_id,
+      position_id,
+      work_minutes,
+      amount,
+      remark
+    FROM settlement_detail
+    WHERE bill_id = #{billId}
+      AND is_deleted = 0
+    ORDER BY id ASC
+  </select>
+</mapper>

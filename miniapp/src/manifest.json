@@ -1,0 +1,33 @@
+{
+  "name": "志愿服务",
+  "appid": "__UNI__VOLUNTEER",
+  "description": "志愿者智能调度平台小程序",
+  "versionName": "1.0.0",
+  "versionCode": "100",
+  "transformPx": false,
+  "uniStatistics": {
+    "enable": false
+  },
+  "h5": {
+    "title": "志愿服务",
+    "router": {
+      "mode": "hash"
+    }
+  },
+  "mp-weixin": {
+    "appid": "wx9c4a6ebff70cec73",
+    "setting": {
+      "urlCheck": false,
+      "es6": true
+    },
+    "permission": {
+      "scope.userLocation": {
+        "desc": "用于志愿者现场扫码签到时记录服务位置"
+      }
+    },
+    "requiredPrivateInfos": [
+      "getLocation"
+    ],
+    "usingComponents": true
+  }
+}

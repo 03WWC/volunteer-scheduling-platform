@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+    PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.volunteer.platform.activity.dao.AreaDAO">
+
+    <resultMap id="AreaResultMap" type="com.volunteer.platform.activity.entity.AreaDO">
+        <id column="id" property="id"/>
+        <result column="activity_id" property="activityId"/>
+        <result column="name" property="name"/>
+        <result column="gps" property="gps"/>
+        <result column="owner_name" property="ownerName"/>
+    </resultMap>
+
+    <sql id="BaseColumnList">
+        id, activity_id, name, gps, owner_name
+    </sql>
+
+    <insert id="insert" parameterType="com.volunteer.platform.activity.entity.AreaDO"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO area (
+            activity_id, name, gps, owner_name
+        ) VALUES (
+            #{activityId}, #{name}, #{gps}, #{ownerName}
+        )
+    </insert>
+
+    <update id="updateById" parameterType="com.volunteer.platform.activity.entity.AreaDO">
+        UPDATE area
+        SET activity_id = #{activityId},
+            name = #{name},
+            gps = #{gps},
+            owner_name = #{ownerName}
+        WHERE id = #{id}
+          AND is_deleted = 0
+    </update>
+
+    <select id="selectById" resultMap="AreaResultMap">
+        SELECT <include refid="BaseColumnList"/>
+        FROM area
+        WHERE id = #{id}
+          AND is_deleted = 0
+    </select>
+
+    <select id="selectByActivityId" resultMap="AreaResultMap">
+        SELECT <include refid="BaseColumnList"/>
+        FROM area
+        WHERE activity_id = #{activityId}
+          AND is_deleted = 0
+        ORDER BY id ASC
+    </select>
+
+    <update id="deleteById">
+        UPDATE area
+        SET is_deleted = 1
+        WHERE id = #{id}
+          AND is_deleted = 0
+    </update>
+</mapper>

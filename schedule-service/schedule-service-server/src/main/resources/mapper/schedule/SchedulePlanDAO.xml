@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+    PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.volunteer.platform.schedule.dao.SchedulePlanDAO">
+
+    <resultMap id="SchedulePlanResultMap" type="com.volunteer.platform.schedule.entity.SchedulePlanDO">
+        <id column="id" property="id"/>
+        <result column="activity_id" property="activityId"/>
+        <result column="plan_no" property="planNo"/>
+        <result column="plan_name" property="planName"/>
+        <result column="plan_status" property="planStatus"/>
+        <result column="generated_by" property="generatedBy"/>
+        <result column="published_time" property="publishedTime"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="com.volunteer.platform.schedule.entity.SchedulePlanDO"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO schedule_plan (
+            activity_id, plan_no, plan_name, plan_status, generated_by
+        ) VALUES (
+            #{activityId}, #{planNo}, #{planName}, #{planStatus}, #{generatedBy}
+        )
+    </insert>
+
+    <update id="updateStatus" parameterType="com.volunteer.platform.schedule.entity.SchedulePlanDO">
+        UPDATE schedule_plan
+        SET plan_status = #{planStatus},
+            published_time = #{publishedTime}
+        WHERE id = #{id}
+          AND is_deleted = 0
+    </update>
+
+    <select id="selectById" resultMap="SchedulePlanResultMap">
+        SELECT id, activity_id, plan_no, plan_name, plan_status, generated_by, published_time
+        FROM schedule_plan
+        WHERE id = #{id}
+          AND is_deleted = 0
+    </select>
+
+    <select id="selectLatestByActivityId" resultMap="SchedulePlanResultMap">
+        SELECT id, activity_id, plan_no, plan_name, plan_status, generated_by, published_time
+        FROM schedule_plan
+        WHERE activity_id = #{activityId}
+          AND is_deleted = 0
+        ORDER BY id DESC
+        LIMIT 1
+    </select>
+</mapper>

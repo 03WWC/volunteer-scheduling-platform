@@ -3,6 +3,9 @@ package com.volunteer.platform.user.service;
 import com.volunteer.platform.common.exception.BusinessException;
 import com.volunteer.platform.user.client.wechat.WechatCodeSession;
 import com.volunteer.platform.user.client.wechat.WechatCodeSessionClient;
+import com.volunteer.platform.user.dao.AdminPermissionDAO;
+import com.volunteer.platform.user.dao.AdminRoleDAO;
+import com.volunteer.platform.user.dao.AdminUserDAO;
 import com.volunteer.platform.user.dao.UserAvailabilityDAO;
 import com.volunteer.platform.user.dao.UserDAO;
 import com.volunteer.platform.user.dao.UserSkillDAO;
@@ -12,6 +15,9 @@ import com.volunteer.platform.user.dto.RegisterUserDTO;
 import com.volunteer.platform.user.dto.SaveAvailabilityDTO;
 import com.volunteer.platform.user.dto.SaveUserSkillDTO;
 import com.volunteer.platform.user.dto.WechatLoginDTO;
+import com.volunteer.platform.user.entity.AdminPermissionDO;
+import com.volunteer.platform.user.entity.AdminRoleDO;
+import com.volunteer.platform.user.entity.AdminUserDO;
 import com.volunteer.platform.user.entity.UserAvailabilityDO;
 import com.volunteer.platform.user.entity.UserDO;
 import com.volunteer.platform.user.entity.UserSkillDO;
@@ -132,6 +138,20 @@ class UserServiceImplTest {
     }
 
     @Test
+    void deletesVolunteerBySoftDelete() {
+        UserService service = new UserServiceImpl(new InMemoryUserDAO(), new InMemoryUserSkillDAO(),
+            new InMemoryAvailabilityDAO());
+        UserVO userVO = service.register(registerVolunteerDTO("volunteer-soft-delete", "13800000035"));
+
+        service.deleteVolunteer(userVO.getId());
+
+        assertThatThrownBy(() -> service.getById(userVO.getId()))
+            .isInstanceOf(BusinessException.class)
+            .hasMessage("user not found");
+        assertThat(service.listVolunteers(new UserQuery())).isEmpty();
+    }
+
+    @Test
     void updatesAvailabilityWhenIdIsProvided() {
         UserService service = new UserServiceImpl(new InMemoryUserDAO(), new InMemoryUserSkillDAO(),
             new InMemoryAvailabilityDAO());
@@ -227,12 +247,40 @@ class UserServiceImplTest {
             new InMemoryAvailabilityDAO());
         AdminLoginDTO dto = new AdminLoginDTO();
         dto.setAccount("admin");
-        dto.setPassword("Admin123456");
+        dto.setPassword("change-me");
 
         AuthSessionVO sessionVO = service.adminLogin(dto);
 
         assertThat(sessionVO.getToken()).isNotBlank();
         assertThat(sessionVO.getUser().getUserType()).isEqualTo("MANAGER");
+        assertThat(sessionVO.getRoles()).containsExactly("SUPER_ADMIN");
+        assertThat(sessionVO.getPermissions()).contains("activity:manage", "schedule:manage", "system:manage");
+    }
+
+    @Test
+    void logsInAdminFromDatabaseWithRolesAndPermissions() {
+        InMemoryAdminUserDAO adminUserDAO = new InMemoryAdminUserDAO();
+        AdminUserDO adminUserDO = new AdminUserDO();
+        adminUserDO.setId(100L);
+        adminUserDO.setAccount("planner");
+        adminUserDO.setPassword("Planner123");
+        adminUserDO.setUsername("planner");
+        adminUserDO.setRealName("排班管理员");
+        adminUserDAO.adminUserDO = adminUserDO;
+        UserService service = new UserServiceImpl(new InMemoryUserDAO(), new InMemoryUserSkillDAO(),
+            new InMemoryAvailabilityDAO(), code -> {
+                throw new BusinessException(500, "wechat unavailable");
+            }, adminUserDAO, new InMemoryAdminRoleDAO(), new InMemoryAdminPermissionDAO());
+        AdminLoginDTO dto = new AdminLoginDTO();
+        dto.setAccount("planner");
+        dto.setPassword("Planner123");
+
+        AuthSessionVO sessionVO = service.adminLogin(dto);
+
+        assertThat(sessionVO.getUser().getId()).isEqualTo(100L);
+        assertThat(sessionVO.getUser().getRealName()).isEqualTo("排班管理员");
+        assertThat(sessionVO.getRoles()).containsExactly("SCHEDULE_MANAGER");
+        assertThat(sessionVO.getPermissions()).containsExactly("dashboard:view", "schedule:manage", "dispatch:manage");
     }
 
     @Test
@@ -260,6 +308,7 @@ class UserServiceImplTest {
 
         private final AtomicLong idGenerator = new AtomicLong(1L);
         private final List<UserDO> users = new ArrayList<>();
+        private final List<Long> deletedUserIds = new ArrayList<>();
 
         @Override
         public int insert(UserDO userDO) {
@@ -284,6 +333,7 @@ class UserServiceImplTest {
         public UserDO selectById(Long id) {
             return users.stream()
                 .filter(user -> user.getId().equals(id))
+                .filter(user -> !deletedUserIds.contains(user.getId()))
                 .findFirst()
                 .orElse(null);
         }
@@ -292,6 +342,7 @@ class UserServiceImplTest {
         public UserDO selectByOpenid(String openid) {
             return users.stream()
                 .filter(user -> openid.equals(user.getOpenid()))
+                .filter(user -> !deletedUserIds.contains(user.getId()))
                 .findFirst()
                 .orElse(null);
         }
@@ -300,7 +351,14 @@ class UserServiceImplTest {
         public List<UserDO> selectVolunteers(UserQuery query) {
             return users.stream()
                 .filter(user -> "VOLUNTEER".equals(user.getUserType()))
+                .filter(user -> !deletedUserIds.contains(user.getId()))
                 .toList();
+        }
+
+        @Override
+        public int deleteById(Long id) {
+            deletedUserIds.add(id);
+            return 1;
         }
     }
 
@@ -382,6 +440,109 @@ class UserServiceImplTest {
             return availabilityList.stream()
                 .filter(availability -> availability.getUserId().equals(userId))
                 .toList();
+        }
+    }
+
+    private static class InMemoryAdminUserDAO implements AdminUserDAO {
+
+        private AdminUserDO adminUserDO;
+
+        @Override
+        public AdminUserDO selectByAccount(String account) {
+            if (adminUserDO == null || !adminUserDO.getAccount().equals(account)) {
+                return null;
+            }
+            return adminUserDO;
+        }
+
+        @Override
+        public AdminUserDO selectById(Long id) {
+            return adminUserDO != null && adminUserDO.getId().equals(id) ? adminUserDO : null;
+        }
+
+        @Override
+        public List<AdminUserDO> selectAll() {
+            return adminUserDO == null ? List.of() : List.of(adminUserDO);
+        }
+
+        @Override
+        public int insert(AdminUserDO adminUserDO) {
+            this.adminUserDO = adminUserDO;
+            return 1;
+        }
+
+        @Override
+        public int update(AdminUserDO adminUserDO) {
+            this.adminUserDO = adminUserDO;
+            return 1;
+        }
+    }
+
+    private static class InMemoryAdminRoleDAO implements AdminRoleDAO {
+
+        @Override
+        public List<AdminRoleDO> selectByAdminId(Long adminId) {
+            AdminRoleDO roleDO = new AdminRoleDO();
+            roleDO.setId(1L);
+            roleDO.setRoleCode("SCHEDULE_MANAGER");
+            roleDO.setRoleName("排班管理员");
+            roleDO.setStatus("ENABLED");
+            return List.of(roleDO);
+        }
+
+        @Override
+        public List<AdminRoleDO> selectAll() {
+            return selectByAdminId(1L);
+        }
+
+        @Override
+        public int deleteUserRoles(Long adminId) {
+            return 1;
+        }
+
+        @Override
+        public int insertUserRole(Long adminId, Long roleId) {
+            return 1;
+        }
+    }
+
+    private static class InMemoryAdminPermissionDAO implements AdminPermissionDAO {
+
+        @Override
+        public List<AdminPermissionDO> selectByAdminId(Long adminId) {
+            AdminPermissionDO dashboard = permission("dashboard:view", "调度总览", 1);
+            AdminPermissionDO schedule = permission("schedule:manage", "排班计划", 2);
+            AdminPermissionDO dispatch = permission("dispatch:manage", "智能调度", 3);
+            return List.of(dashboard, schedule, dispatch);
+        }
+
+        @Override
+        public List<AdminPermissionDO> selectAll() {
+            return selectByAdminId(1L);
+        }
+
+        @Override
+        public List<AdminPermissionDO> selectByRoleId(Long roleId) {
+            return selectByAdminId(1L);
+        }
+
+        @Override
+        public int deleteRolePermissions(Long roleId) {
+            return 1;
+        }
+
+        @Override
+        public int insertRolePermission(Long roleId, Long permissionId) {
+            return 1;
+        }
+
+        private AdminPermissionDO permission(String code, String name, int sortNo) {
+            AdminPermissionDO permissionDO = new AdminPermissionDO();
+            permissionDO.setPermissionCode(code);
+            permissionDO.setPermissionName(name);
+            permissionDO.setSortNo(sortNo);
+            permissionDO.setStatus("ENABLED");
+            return permissionDO;
         }
     }
 }

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { AlarmClock, Plus, Refresh, Search } from '@element-plus/icons-vue'
-import { ElMessage, type FormInstance } from 'element-plus'
+import { AlarmClock, Delete, Plus, Refresh, Search } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox, type FormInstance } from 'element-plus'
 import { volunteerApi } from '@/api/modules'
 import { SKILL_LEVEL_OPTIONS, VOLUNTEER_SKILL_OPTIONS, skillDisplayName, skillLevelNameOf, skillNameOf } from '@/constants/skills'
 import type { UserAvailabilityRecord, UserSkillRecord, VolunteerRecord } from '@/types/api'
@@ -100,6 +100,26 @@ async function openDetail(row: VolunteerRecord) {
   availability.value = await volunteerApi.listAvailability(row.id)
 }
 
+async function removeVolunteer(row: VolunteerRecord) {
+  const name = row.realName || row.username || `志愿者 ${row.id}`
+  try {
+    await ElMessageBox.confirm(`确认删除“${name}”吗？历史报名、排班和签到记录会保留。`, '删除志愿者', {
+      type: 'warning',
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+    })
+  } catch {
+    return
+  }
+  await volunteerApi.remove(row.id)
+  ElMessage.success('志愿者已删除')
+  if (selectedVolunteer.value?.id === row.id) {
+    detailVisible.value = false
+    selectedVolunteer.value = undefined
+  }
+  await loadVolunteers()
+}
+
 function authLabel(status?: number | string) {
   if (status === 1 || status === 'AUTHENTICATED') {
     return '已认证'
@@ -149,9 +169,10 @@ function fmt(value?: string) {
             <el-tag :type="authLabel(row.authStatus) === '已认证' ? 'success' : 'warning'" effect="light">{{ authLabel(row.authStatus) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="120" fixed="right">
+        <el-table-column label="操作" width="170" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" :icon="AlarmClock" @click="openDetail(row)">详情</el-button>
+            <el-button link type="danger" :icon="Delete" @click="removeVolunteer(row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
