@@ -32,9 +32,9 @@ export const SKILL_LEVEL_OPTIONS = [
 ] as const satisfies readonly SkillLevelOption[]
 
 const NO_SKILL_ALIASES = new Set(['无', '不限', '不限技能', 'ANY', 'NONE'])
-const SKILL_NAME_MAP = new Map(SKILL_OPTIONS.map((item) => [item.code, item.name]))
-const LEVEL_NAME_MAP = new Map(SKILL_LEVEL_OPTIONS.map((item) => [item.code, item.name]))
-const LEGACY_LEVEL_NAME_MAP = new Map([
+const SKILL_NAME_MAP: Map<string, string> = new Map(SKILL_OPTIONS.map((item) => [item.code, item.name]))
+const LEVEL_NAME_MAP: Map<string, string> = new Map(SKILL_LEVEL_OPTIONS.map((item) => [item.code, item.name]))
+const LEGACY_LEVEL_NAME_MAP: Map<string, string> = new Map([
   ['基础', '基础'],
   ['一般', '基础'],
   ['熟练', '熟练'],
