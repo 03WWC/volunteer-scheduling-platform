@@ -4,7 +4,7 @@ import { useRoute } from 'vue-router'
 import { Delete, Edit, Plus, Refresh, Search } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { activityApi, areaApi, positionApi } from '@/api/modules'
-import { POSITION_SKILL_OPTIONS, normalizeSkillCode, skillNameOf } from '@/constants/skills'
+import { POSITION_SKILL_OPTIONS, skillCodeForSave, skillNameOf } from '@/constants/skills'
 import type { ActivityRecord, AreaRecord, PageResult, PositionRecord } from '@/types/api'
 
 const route = useRoute()
@@ -79,7 +79,7 @@ function openEdit(row: AreaRecord | PositionRecord) {
   Object.assign(form, row, {
     startTime: toDateTime(position.startTime),
     endTime: toDateTime(position.endTime),
-    ...(isArea.value ? {} : { skillRequirement: normalizeSkillCode(position.skillRequirement) || 'NONE' }),
+    ...(isArea.value ? {} : { skillRequirement: skillCodeForSave(position.skillRequirement) || 'NONE' }),
   })
   dialogVisible.value = true
 }
@@ -93,7 +93,7 @@ async function submit() {
     ...form,
     startTime: toApiTime(form.startTime),
     endTime: toApiTime(form.endTime),
-    ...(!isArea.value ? { skillRequirement: normalizeSkillCode(form.skillRequirement) || 'NONE' } : {}),
+    ...(!isArea.value ? { skillRequirement: skillCodeForSave(form.skillRequirement) || 'NONE' } : {}),
   }
   if (isArea.value) {
     form.id ? await areaApi.update(payload) : await areaApi.create(payload)

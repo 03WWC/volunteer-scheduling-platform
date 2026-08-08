@@ -3,7 +3,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { AlarmClock, Plus, Refresh, Search } from '@element-plus/icons-vue'
 import { ElMessage, type FormInstance } from 'element-plus'
 import { volunteerApi } from '@/api/modules'
-import { SKILL_LEVEL_OPTIONS, VOLUNTEER_SKILL_OPTIONS, skillLevelNameOf, skillNameOf } from '@/constants/skills'
+import { SKILL_LEVEL_OPTIONS, VOLUNTEER_SKILL_OPTIONS, skillDisplayName, skillLevelNameOf, skillNameOf } from '@/constants/skills'
 import type { UserAvailabilityRecord, UserSkillRecord, VolunteerRecord } from '@/types/api'
 
 const loading = ref(false)
@@ -208,7 +208,7 @@ function fmt(value?: string) {
           <h3>技能</h3>
           <el-table :data="skills" size="small" row-key="id">
             <el-table-column label="技能">
-              <template #default="{ row }">{{ row.skillName || skillNameOf(row.skillCode) }}</template>
+              <template #default="{ row }">{{ skillDisplayName(row.skillCode, row.skillName) }}</template>
             </el-table-column>
             <el-table-column label="等级" width="120">
               <template #default="{ row }">{{ skillLevelNameOf(row.skillLevel) }}</template>

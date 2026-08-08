@@ -58,6 +58,24 @@ export function skillNameOf(value?: string | null): string {
   return SKILL_NAME_MAP.get(normalizeSkillCode(text)) || text
 }
 
+export function skillDisplayName(skillCode?: string | null, skillName?: string | null): string {
+  const normalizedCode = normalizeSkillCode(skillCode)
+  if (normalizedCode && SKILL_NAME_MAP.has(normalizedCode)) {
+    return SKILL_NAME_MAP.get(normalizedCode) || '未设置'
+  }
+  const savedName = skillName?.trim()
+  return savedName || skillNameOf(skillCode)
+}
+
+export function skillCodeForSave(value?: string | null): string {
+  const text = value?.trim()
+  if (!text) {
+    return ''
+  }
+  const normalizedCode = normalizeSkillCode(text)
+  return SKILL_NAME_MAP.has(normalizedCode) ? normalizedCode : text
+}
+
 export function skillLevelNameOf(value?: string | null): string {
   const text = value?.trim()
   if (!text) {

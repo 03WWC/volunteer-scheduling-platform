@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { userApi } from '@/api/modules'
-import { SKILL_LEVEL_OPTIONS, VOLUNTEER_SKILL_OPTIONS, skillLevelNameOf, skillNameOf } from '@/constants/skills'
+import { SKILL_LEVEL_OPTIONS, VOLUNTEER_SKILL_OPTIONS, skillDisplayName, skillLevelNameOf } from '@/constants/skills'
 import { useUserStore } from '@/stores/user'
 import type { UserSkillItem } from '@/types/api'
 
@@ -102,7 +102,7 @@ function resetForm() {
 
     <view class="skill-list surface">
       <view v-for="item in skills" :key="item.id" class="skill-item">
-        <view><text>{{ item.skillName || skillNameOf(item.skillCode) }}</text></view>
+        <view><text>{{ skillDisplayName(item.skillCode, item.skillName) }}</text></view>
         <text class="status">{{ skillLevelNameOf(item.skillLevel) }}</text>
       </view>
       <view v-if="loading" class="empty-state">加载中...</view>
