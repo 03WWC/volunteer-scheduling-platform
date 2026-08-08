@@ -1,0 +1,79 @@
+{
+  "pages": [
+    {
+      "path": "pages/home/index",
+      "style": { "navigationBarTitleText": "志愿服务", "navigationStyle": "custom" }
+    },
+    {
+      "path": "pages/activity/list",
+      "style": { "navigationBarTitleText": "志愿活动" }
+    },
+    {
+      "path": "pages/activity/signups",
+      "style": { "navigationBarTitleText": "我的报名" }
+    },
+    {
+      "path": "pages/schedule/list",
+      "style": { "navigationBarTitleText": "我的排班" }
+    },
+    {
+      "path": "pages/message/list",
+      "style": { "navigationBarTitleText": "消息通知" }
+    },
+    {
+      "path": "pages/mine/index",
+      "style": { "navigationBarTitleText": "个人中心" }
+    },
+    {
+      "path": "pages/mine/realname",
+      "style": { "navigationBarTitleText": "实名认证" }
+    },
+    {
+      "path": "pages/mine/skills",
+      "style": { "navigationBarTitleText": "技能标签" }
+    },
+    {
+      "path": "pages/mine/availability",
+      "style": { "navigationBarTitleText": "可服务时间" }
+    },
+    {
+      "path": "pages/mine/help",
+      "style": { "navigationBarTitleText": "帮助与反馈" }
+    },
+    {
+      "path": "pages/mine/settings",
+      "style": { "navigationBarTitleText": "隐私与设置" }
+    },
+    {
+      "path": "pages/login/index",
+      "style": { "navigationBarTitleText": "微信登录" }
+    },
+    {
+      "path": "pages/checkin/index",
+      "style": { "navigationBarTitleText": "扫码签到" }
+    },
+    {
+      "path": "pages/income/list",
+      "style": { "navigationBarTitleText": "服务收入" }
+    }
+  ],
+  "globalStyle": {
+    "navigationBarTextStyle": "black",
+    "navigationBarTitleText": "志愿服务",
+    "navigationBarBackgroundColor": "#ffffff",
+    "backgroundColor": "#f4f7f6"
+  },
+  "tabBar": {
+    "color": "#82908d",
+    "selectedColor": "#24715f",
+    "backgroundColor": "#ffffff",
+    "borderStyle": "black",
+    "list": [
+      { "pagePath": "pages/home/index", "text": "首页" },
+      { "pagePath": "pages/activity/list", "text": "活动" },
+      { "pagePath": "pages/schedule/list", "text": "排班" },
+      { "pagePath": "pages/message/list", "text": "消息" },
+      { "pagePath": "pages/mine/index", "text": "我的" }
+    ]
+  }
+}

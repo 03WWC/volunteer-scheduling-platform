@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+    PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.volunteer.platform.activity.dao.ActivityDAO">
+
+    <resultMap id="ActivityResultMap" type="com.volunteer.platform.activity.entity.ActivityDO">
+        <id column="id" property="id"/>
+        <result column="name" property="name"/>
+        <result column="activity_type" property="activityType"/>
+        <result column="start_time" property="startTime"/>
+        <result column="end_time" property="endTime"/>
+        <result column="location" property="location"/>
+        <result column="owner_name" property="ownerName"/>
+        <result column="contact_phone" property="contactPhone"/>
+    </resultMap>
+
+    <sql id="BaseColumnList">
+        id, name, activity_type, start_time, end_time, location, owner_name, contact_phone
+    </sql>
+
+    <insert id="insert" parameterType="com.volunteer.platform.activity.entity.ActivityDO"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO activity (
+            name, activity_type, start_time, end_time, location, owner_name, contact_phone
+        ) VALUES (
+            #{name}, #{activityType}, #{startTime}, #{endTime}, #{location}, #{ownerName}, #{contactPhone}
+        )
+    </insert>
+
+    <update id="updateById" parameterType="com.volunteer.platform.activity.entity.ActivityDO">
+        UPDATE activity
+        SET name = #{name},
+            activity_type = #{activityType},
+            start_time = #{startTime},
+            end_time = #{endTime},
+            location = #{location},
+            owner_name = #{ownerName},
+            contact_phone = #{contactPhone}
+        WHERE id = #{id}
+          AND is_deleted = 0
+    </update>
+
+    <select id="selectById" resultMap="ActivityResultMap">
+        SELECT <include refid="BaseColumnList"/>
+        FROM activity
+        WHERE id = #{id}
+          AND is_deleted = 0
+    </select>
+
+    <select id="selectPage" resultMap="ActivityResultMap">
+        SELECT <include refid="BaseColumnList"/>
+        FROM activity
+        WHERE is_deleted = 0
+        <if test="query.nameKeyword != null and query.nameKeyword != ''">
+            AND name LIKE CONCAT('%', #{query.nameKeyword}, '%')
+        </if>
+        ORDER BY start_time DESC, id DESC
+        LIMIT #{query.limit} OFFSET #{query.offset}
+    </select>
+
+    <update id="deleteById">
+        UPDATE activity
+        SET is_deleted = 1
+        WHERE id = #{id}
+          AND is_deleted = 0
+    </update>
+</mapper>

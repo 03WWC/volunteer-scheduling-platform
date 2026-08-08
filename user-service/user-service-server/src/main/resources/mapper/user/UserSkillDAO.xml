@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+    PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.volunteer.platform.user.dao.UserSkillDAO">
+
+    <resultMap id="UserSkillResultMap" type="com.volunteer.platform.user.entity.UserSkillDO">
+        <id column="id" property="id"/>
+        <result column="user_id" property="userId"/>
+        <result column="skill_code" property="skillCode"/>
+        <result column="skill_name" property="skillName"/>
+        <result column="skill_level" property="skillLevel"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="com.volunteer.platform.user.entity.UserSkillDO"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO user_skill (
+            user_id, skill_code, skill_name, skill_level
+        ) VALUES (
+            #{userId}, #{skillCode}, #{skillName}, #{skillLevel}
+        )
+    </insert>
+
+    <select id="selectById" resultMap="UserSkillResultMap">
+        SELECT id, user_id, skill_code, skill_name, skill_level
+        FROM user_skill
+        WHERE id = #{id}
+          AND is_deleted = 0
+    </select>
+
+    <update id="deleteById">
+        UPDATE user_skill
+        SET is_deleted = 1
+        WHERE id = #{id}
+          AND is_deleted = 0
+    </update>
+
+    <select id="selectByUserId" resultMap="UserSkillResultMap">
+        SELECT id, user_id, skill_code, skill_name, skill_level
+        FROM user_skill
+        WHERE user_id = #{userId}
+          AND is_deleted = 0
+        ORDER BY id ASC
+    </select>
+</mapper>

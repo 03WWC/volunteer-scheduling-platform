@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.volunteer.platform.dispatch.dao.DispatchTaskDAO">
+
+  <resultMap id="DispatchTaskResultMap" type="com.volunteer.platform.dispatch.entity.DispatchTaskDO">
+    <id column="id" property="id"/>
+    <result column="activity_id" property="activityId"/>
+    <result column="area_id" property="areaId"/>
+    <result column="position_id" property="positionId"/>
+    <result column="required_count" property="requiredCount"/>
+    <result column="reason" property="reason"/>
+    <result column="dispatch_status" property="dispatchStatus"/>
+    <result column="created_by" property="createdBy"/>
+    <result column="finished_time" property="finishedTime"/>
+  </resultMap>
+
+  <insert id="insert" parameterType="com.volunteer.platform.dispatch.entity.DispatchTaskDO"
+          useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO dispatch_task (
+      activity_id,
+      area_id,
+      position_id,
+      required_count,
+      reason,
+      dispatch_status,
+      created_by
+    ) VALUES (
+      #{activityId},
+      #{areaId},
+      #{positionId},
+      #{requiredCount},
+      #{reason},
+      #{dispatchStatus},
+      #{createdBy}
+    )
+  </insert>
+
+  <select id="selectById" resultMap="DispatchTaskResultMap">
+    SELECT
+      id,
+      activity_id,
+      area_id,
+      position_id,
+      required_count,
+      reason,
+      dispatch_status,
+      created_by,
+      finished_time
+    FROM dispatch_task
+    WHERE id = #{id}
+      AND is_deleted = 0
+  </select>
+
+  <update id="updateStatus" parameterType="com.volunteer.platform.dispatch.entity.DispatchTaskDO">
+    UPDATE dispatch_task
+    SET dispatch_status = #{dispatchStatus},
+        finished_time = #{finishedTime}
+    WHERE id = #{id}
+      AND is_deleted = 0
+  </update>
+</mapper>

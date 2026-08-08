@@ -1,0 +1,18 @@
+server:
+  port: 8108
+
+spring:
+  application:
+    name: ai-scheduler
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+
+volunteer:
+  ai:
+    llm:
+      enabled: false
+      base-url: https://api.openai.com
+      api-key: ""
+      model: gpt-4.1-mini

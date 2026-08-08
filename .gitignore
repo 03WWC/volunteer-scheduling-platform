@@ -1,0 +1,42 @@
+.worktrees/
+.env
+环境.txt
+target/
+.m2/
+*.log
+.idea/
+*.iml
+.vscode/
+.DS_Store
+Thumbs.db
+
+# local secrets
+.env
+.env.*
+!.env.example
+!*.env.example
+环境.txt
+
+# dependencies and build output
+node_modules/
+dist/
+target/
+.pnpm-store/
+.m2/
+
+# IDE and OS
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+
+# logs and temp
+*.log
+*.tmp
+
+# WeChat private project settings
+project.private.config.json
+
+# generated reports
+答辩分工报告/

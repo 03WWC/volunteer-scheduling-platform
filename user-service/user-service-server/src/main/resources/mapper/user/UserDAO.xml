@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+    PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.volunteer.platform.user.dao.UserDAO">
+
+    <resultMap id="UserResultMap" type="com.volunteer.platform.user.entity.UserDO">
+        <id column="id" property="id"/>
+        <result column="username" property="username"/>
+        <result column="real_name" property="realName"/>
+        <result column="mobile" property="mobile"/>
+        <result column="openid" property="openid"/>
+        <result column="id_card_no" property="idCardNo"/>
+        <result column="user_type" property="userType"/>
+        <result column="auth_status" property="authStatus"/>
+        <result column="avatar_url" property="avatarUrl"/>
+        <result column="status" property="status"/>
+    </resultMap>
+
+    <sql id="BaseColumnList">
+        id, username, real_name, mobile, openid, id_card_no, user_type, auth_status, avatar_url, status
+    </sql>
+
+    <insert id="insert" parameterType="com.volunteer.platform.user.entity.UserDO"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO user_info (
+            username, mobile, openid, user_type, auth_status, avatar_url, status
+        ) VALUES (
+            #{username}, #{mobile}, #{openid}, #{userType}, #{authStatus}, #{avatarUrl}, #{status}
+        )
+    </insert>
+
+    <update id="updateAuth" parameterType="com.volunteer.platform.user.entity.UserDO">
+        UPDATE user_info
+        SET real_name = #{realName},
+            id_card_no = #{idCardNo},
+            auth_status = #{authStatus}
+        WHERE id = #{id}
+          AND is_deleted = 0
+    </update>
+
+    <select id="selectById" resultMap="UserResultMap">
+        SELECT <include refid="BaseColumnList"/>
+        FROM user_info
+        WHERE id = #{id}
+          AND is_deleted = 0
+    </select>
+
+    <select id="selectByOpenid" resultMap="UserResultMap">
+        SELECT <include refid="BaseColumnList"/>
+        FROM user_info
+        WHERE openid = #{openid}
+          AND is_deleted = 0
+    </select>
+
+    <select id="selectVolunteers" resultMap="UserResultMap">
+        SELECT <include refid="BaseColumnList"/>
+        FROM user_info
+        WHERE user_type = 'VOLUNTEER'
+          AND is_deleted = 0
+        <if test="query.mobileKeyword != null and query.mobileKeyword != ''">
+            AND mobile LIKE CONCAT('%', #{query.mobileKeyword}, '%')
+        </if>
+        ORDER BY id DESC
+    </select>
+</mapper>

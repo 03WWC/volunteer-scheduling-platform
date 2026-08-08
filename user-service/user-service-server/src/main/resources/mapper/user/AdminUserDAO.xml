@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+    PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.volunteer.platform.user.dao.AdminUserDAO">
+
+    <resultMap id="AdminUserResultMap" type="com.volunteer.platform.user.entity.AdminUserDO">
+        <id column="id" property="id"/>
+        <result column="account" property="account"/>
+        <result column="password" property="password"/>
+        <result column="username" property="username"/>
+        <result column="real_name" property="realName"/>
+        <result column="mobile" property="mobile"/>
+        <result column="status" property="status"/>
+    </resultMap>
+
+    <select id="selectByAccount" resultMap="AdminUserResultMap">
+        SELECT id, account, password, username, real_name, mobile, status
+        FROM admin_user
+        WHERE account = #{account}
+          AND status = 'ENABLED'
+          AND is_deleted = 0
+        LIMIT 1
+    </select>
+
+    <select id="selectById" resultMap="AdminUserResultMap">
+        SELECT id, account, password, username, real_name, mobile, status
+        FROM admin_user
+        WHERE id = #{id}
+          AND is_deleted = 0
+    </select>
+
+    <select id="selectAll" resultMap="AdminUserResultMap">
+        SELECT id, account, password, username, real_name, mobile, status
+        FROM admin_user
+        WHERE is_deleted = 0
+        ORDER BY id ASC
+    </select>
+
+    <insert id="insert" parameterType="com.volunteer.platform.user.entity.AdminUserDO"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO admin_user (
+            account, password, username, real_name, mobile, status
+        ) VALUES (
+            #{account}, #{password}, #{username}, #{realName}, #{mobile}, #{status}
+        )
+    </insert>
+
+    <update id="update" parameterType="com.volunteer.platform.user.entity.AdminUserDO">
+        UPDATE admin_user
+        SET username = #{username},
+            real_name = #{realName},
+            mobile = #{mobile},
+            status = #{status}
+        <if test="password != null and password != ''">
+            , password = #{password}
+        </if>
+        WHERE id = #{id}
+          AND is_deleted = 0
+    </update>
+</mapper>

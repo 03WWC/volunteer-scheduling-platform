@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+    PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.volunteer.platform.activity.dao.ActivitySignupDAO">
+
+    <resultMap id="ActivitySignupResultMap" type="com.volunteer.platform.activity.entity.ActivitySignupDO">
+        <id column="id" property="id"/>
+        <result column="activity_id" property="activityId"/>
+        <result column="position_id" property="positionId"/>
+        <result column="user_id" property="userId"/>
+        <result column="signup_status" property="signupStatus"/>
+        <result column="remark" property="remark"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="com.volunteer.platform.activity.entity.ActivitySignupDO"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO activity_signup (activity_id, position_id, user_id, signup_status, remark)
+        VALUES (#{activityId}, #{positionId}, #{userId}, #{signupStatus}, #{remark})
+    </insert>
+
+    <select id="selectExisting" resultMap="ActivitySignupResultMap">
+        SELECT id, activity_id, position_id, user_id, signup_status, remark
+        FROM activity_signup
+        WHERE activity_id = #{activityId}
+          AND user_id = #{userId}
+          <choose>
+            <when test="positionId == null">
+              AND position_id IS NULL
+            </when>
+            <otherwise>
+              AND position_id = #{positionId}
+            </otherwise>
+          </choose>
+          AND is_deleted = 0
+        LIMIT 1
+    </select>
+
+    <select id="selectById" resultMap="ActivitySignupResultMap">
+        SELECT id, activity_id, position_id, user_id, signup_status, remark
+        FROM activity_signup
+        WHERE id = #{id}
+          AND is_deleted = 0
+        LIMIT 1
+    </select>
+
+    <select id="selectPage" resultMap="ActivitySignupResultMap">
+        SELECT id, activity_id, position_id, user_id, signup_status, remark
+        FROM activity_signup
+        WHERE is_deleted = 0
+        <if test="activityId != null">
+          AND activity_id = #{activityId}
+        </if>
+        <if test="userId != null">
+          AND user_id = #{userId}
+        </if>
+        <if test="signupStatus != null and signupStatus != ''">
+          AND signup_status = #{signupStatus}
+        </if>
+        ORDER BY id DESC
+    </select>
+
+    <select id="selectByUserId" resultMap="ActivitySignupResultMap">
+        SELECT id, activity_id, position_id, user_id, signup_status, remark
+        FROM activity_signup
+        WHERE user_id = #{userId}
+          AND is_deleted = 0
+        ORDER BY id DESC
+    </select>
+
+    <update id="updateStatus">
+        UPDATE activity_signup
+        SET signup_status = #{signupStatus}
+        WHERE id = #{id}
+          AND is_deleted = 0
+    </update>
+</mapper>

@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+    PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.volunteer.platform.user.dao.AdminPermissionDAO">
+
+    <resultMap id="AdminPermissionResultMap" type="com.volunteer.platform.user.entity.AdminPermissionDO">
+        <id column="id" property="id"/>
+        <result column="permission_code" property="permissionCode"/>
+        <result column="permission_name" property="permissionName"/>
+        <result column="parent_code" property="parentCode"/>
+        <result column="permission_type" property="permissionType"/>
+        <result column="sort_no" property="sortNo"/>
+        <result column="status" property="status"/>
+    </resultMap>
+
+    <select id="selectByAdminId" resultMap="AdminPermissionResultMap">
+        SELECT DISTINCT p.id, p.permission_code, p.permission_name, p.parent_code, p.permission_type, p.sort_no, p.status
+        FROM admin_permission p
+        INNER JOIN admin_role_permission rp ON rp.permission_id = p.id
+        INNER JOIN admin_user_role ur ON ur.role_id = rp.role_id
+        INNER JOIN admin_role r ON r.id = rp.role_id
+        WHERE ur.admin_id = #{adminId}
+          AND p.status = 'ENABLED'
+          AND r.status = 'ENABLED'
+          AND p.is_deleted = 0
+          AND rp.is_deleted = 0
+          AND ur.is_deleted = 0
+          AND r.is_deleted = 0
+        ORDER BY p.sort_no ASC, p.id ASC
+    </select>
+
+    <select id="selectAll" resultMap="AdminPermissionResultMap">
+        SELECT id, permission_code, permission_name, parent_code, permission_type, sort_no, status
+        FROM admin_permission
+        WHERE status = 'ENABLED'
+          AND is_deleted = 0
+        ORDER BY sort_no ASC, id ASC
+    </select>
+
+    <select id="selectByRoleId" resultMap="AdminPermissionResultMap">
+        SELECT p.id, p.permission_code, p.permission_name, p.parent_code, p.permission_type, p.sort_no, p.status
+        FROM admin_permission p
+        INNER JOIN admin_role_permission rp ON rp.permission_id = p.id
+        WHERE rp.role_id = #{roleId}
+          AND p.status = 'ENABLED'
+          AND p.is_deleted = 0
+          AND rp.is_deleted = 0
+        ORDER BY p.sort_no ASC, p.id ASC
+    </select>
+
+    <update id="deleteRolePermissions">
+        UPDATE admin_role_permission
+        SET is_deleted = 1
+        WHERE role_id = #{roleId}
+          AND is_deleted = 0
+    </update>
+
+    <insert id="insertRolePermission">
+        INSERT INTO admin_role_permission (role_id, permission_id, is_deleted)
+        VALUES (#{roleId}, #{permissionId}, 0)
+        ON DUPLICATE KEY UPDATE is_deleted = 0
+    </insert>
+</mapper>

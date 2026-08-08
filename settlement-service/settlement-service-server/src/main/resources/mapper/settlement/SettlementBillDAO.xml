@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.volunteer.platform.settlement.dao.SettlementBillDAO">
+
+  <resultMap id="SettlementBillResultMap" type="com.volunteer.platform.settlement.entity.SettlementBillDO">
+    <id column="id" property="id"/>
+    <result column="bill_no" property="billNo"/>
+    <result column="activity_id" property="activityId"/>
+    <result column="user_id" property="userId"/>
+    <result column="total_work_minutes" property="totalWorkMinutes"/>
+    <result column="base_amount" property="baseAmount"/>
+    <result column="hour_amount" property="hourAmount"/>
+    <result column="reward_amount" property="rewardAmount"/>
+    <result column="deduct_amount" property="deductAmount"/>
+    <result column="total_amount" property="totalAmount"/>
+    <result column="bill_status" property="billStatus"/>
+  </resultMap>
+
+  <insert id="insert" parameterType="com.volunteer.platform.settlement.entity.SettlementBillDO"
+          useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO settlement_bill (
+      bill_no,
+      activity_id,
+      user_id,
+      total_work_minutes,
+      base_amount,
+      hour_amount,
+      reward_amount,
+      deduct_amount,
+      total_amount,
+      bill_status
+    ) VALUES (
+      #{billNo},
+      #{activityId},
+      #{userId},
+      #{totalWorkMinutes},
+      #{baseAmount},
+      #{hourAmount},
+      #{rewardAmount},
+      #{deductAmount},
+      #{totalAmount},
+      #{billStatus}
+    )
+  </insert>
+
+  <select id="selectById" resultMap="SettlementBillResultMap">
+    SELECT
+      id,
+      bill_no,
+      activity_id,
+      user_id,
+      total_work_minutes,
+      base_amount,
+      hour_amount,
+      reward_amount,
+      deduct_amount,
+      total_amount,
+      bill_status
+    FROM settlement_bill
+    WHERE id = #{id}
+      AND is_deleted = 0
+  </select>
+
+  <select id="selectByUserId" resultMap="SettlementBillResultMap">
+    SELECT
+      id,
+      bill_no,
+      activity_id,
+      user_id,
+      total_work_minutes,
+      base_amount,
+      hour_amount,
+      reward_amount,
+      deduct_amount,
+      total_amount,
+      bill_status
+    FROM settlement_bill
+    WHERE user_id = #{userId}
+      AND is_deleted = 0
+    ORDER BY id DESC
+  </select>
+
+  <update id="updateStatus" parameterType="com.volunteer.platform.settlement.entity.SettlementBillDO">
+    UPDATE settlement_bill
+    SET bill_status = #{billStatus}
+    WHERE id = #{id}
+      AND is_deleted = 0
+  </update>
+</mapper>

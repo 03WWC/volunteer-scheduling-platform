@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+    PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.volunteer.platform.schedule.dao.ScheduleAssignmentDAO">
+
+    <resultMap id="ScheduleAssignmentResultMap"
+               type="com.volunteer.platform.schedule.entity.ScheduleAssignmentDO">
+        <id column="id" property="id"/>
+        <result column="plan_id" property="planId"/>
+        <result column="activity_id" property="activityId"/>
+        <result column="area_id" property="areaId"/>
+        <result column="position_id" property="positionId"/>
+        <result column="user_id" property="userId"/>
+        <result column="work_date" property="workDate"/>
+        <result column="start_time" property="startTime"/>
+        <result column="end_time" property="endTime"/>
+        <result column="assignment_status" property="assignmentStatus"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="com.volunteer.platform.schedule.entity.ScheduleAssignmentDO"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO schedule_assignment (
+            plan_id, activity_id, area_id, position_id, user_id, work_date,
+            start_time, end_time, assignment_status
+        ) VALUES (
+            #{planId}, #{activityId}, #{areaId}, #{positionId}, #{userId}, #{workDate},
+            #{startTime}, #{endTime}, #{assignmentStatus}
+        )
+    </insert>
+
+    <update id="updateStatus" parameterType="com.volunteer.platform.schedule.entity.ScheduleAssignmentDO">
+        UPDATE schedule_assignment
+        SET assignment_status = #{assignmentStatus}
+        WHERE id = #{id}
+          AND is_deleted = 0
+    </update>
+
+    <select id="selectById" resultMap="ScheduleAssignmentResultMap">
+        SELECT id, plan_id, activity_id, area_id, position_id, user_id, work_date,
+               start_time, end_time, assignment_status
+        FROM schedule_assignment
+        WHERE id = #{id}
+          AND is_deleted = 0
+    </select>
+
+    <select id="selectByPlanId" resultMap="ScheduleAssignmentResultMap">
+        SELECT id, plan_id, activity_id, area_id, position_id, user_id, work_date,
+               start_time, end_time, assignment_status
+        FROM schedule_assignment
+        WHERE plan_id = #{planId}
+          AND is_deleted = 0
+        ORDER BY work_date ASC, start_time ASC, id ASC
+    </select>
+
+    <select id="selectByUserId" resultMap="ScheduleAssignmentResultMap">
+        SELECT id, plan_id, activity_id, area_id, position_id, user_id, work_date,
+               start_time, end_time, assignment_status
+        FROM schedule_assignment
+        WHERE user_id = #{userId}
+          AND is_deleted = 0
+        ORDER BY work_date ASC, start_time ASC, id ASC
+    </select>
+
+    <select id="countUserTimeConflict" parameterType="com.volunteer.platform.schedule.entity.ScheduleAssignmentDO"
+            resultType="int">
+        SELECT COUNT(1)
+        FROM schedule_assignment
+        WHERE activity_id = #{activityId}
+          AND user_id = #{userId}
+          AND work_date = #{workDate}
+          AND is_deleted = 0
+          AND start_time &lt; #{endTime}
+          AND #{startTime} &lt; end_time
+    </select>
+</mapper>

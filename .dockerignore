@@ -1,0 +1,10 @@
+.git
+.idea
+.m2
+**/target/classes
+**/target/generated-sources
+**/target/generated-test-sources
+**/target/maven-status
+**/target/surefire-reports
+**/target/test-classes
+**/*.log
