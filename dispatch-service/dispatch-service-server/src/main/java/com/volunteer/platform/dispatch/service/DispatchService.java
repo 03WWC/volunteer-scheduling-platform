@@ -13,4 +13,6 @@ public interface DispatchService {
     List<DispatchResultVO> detectShortage(DetectShortageDTO dto);
 
     DispatchResultVO getResult(Long id);
+
+    DispatchResultVO acceptRecommendation(Long recommendationId);
 }

@@ -2,6 +2,7 @@ package com.volunteer.platform.schedule.controller;
 
 import com.volunteer.platform.common.api.Result;
 import com.volunteer.platform.schedule.client.dto.ScheduleDTO;
+import com.volunteer.platform.schedule.client.dto.SupplementScheduleAssignmentDTO;
 import com.volunteer.platform.schedule.dto.AutoGenerateScheduleDTO;
 import com.volunteer.platform.schedule.dto.GenerateScheduleDTO;
 import com.volunteer.platform.schedule.service.ScheduleService;
@@ -45,6 +46,11 @@ public class ScheduleController {
     public Result<Void> confirmAssignment(@PathVariable("assignmentId") Long assignmentId) {
         scheduleService.confirmAssignment(assignmentId);
         return Result.success();
+    }
+
+    @PostMapping("/assignments/supplement")
+    public Result<ScheduleDTO> supplementAssignment(@RequestBody SupplementScheduleAssignmentDTO dto) {
+        return Result.success(toScheduleDTO(scheduleService.supplementAssignment(dto)));
     }
 
     @GetMapping("/{activityId}/detail")

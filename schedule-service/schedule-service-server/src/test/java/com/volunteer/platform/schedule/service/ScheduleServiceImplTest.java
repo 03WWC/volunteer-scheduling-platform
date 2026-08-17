@@ -18,11 +18,13 @@ import com.volunteer.platform.schedule.dao.SchedulePlanDAO;
 import com.volunteer.platform.schedule.dto.AutoGenerateScheduleDTO;
 import com.volunteer.platform.schedule.dto.GenerateScheduleDTO;
 import com.volunteer.platform.schedule.dto.ScheduleAssignmentDTO;
+import com.volunteer.platform.schedule.client.dto.SupplementScheduleAssignmentDTO;
 import com.volunteer.platform.schedule.entity.ScheduleAssignmentDO;
 import com.volunteer.platform.schedule.entity.SchedulePlanDO;
 import com.volunteer.platform.schedule.manager.FreeVolunteerCacheManager;
 import com.volunteer.platform.schedule.manager.ScheduleLockManager;
 import com.volunteer.platform.schedule.service.impl.ScheduleServiceImpl;
+import com.volunteer.platform.schedule.vo.ScheduleAssignmentVO;
 import com.volunteer.platform.schedule.vo.ScheduleDetailVO;
 import com.volunteer.platform.user.client.api.UserClient;
 import com.volunteer.platform.user.client.dto.UserAvailabilityDTO;
@@ -148,6 +150,21 @@ class ScheduleServiceImplTest {
             .contains("schedule-topic");
         assertThat(eventPublisher.events).extracting(event -> event.eventType())
             .contains("SCHEDULE_PUBLISHED");
+    }
+
+    @Test
+    void publishDoesNotSendDuplicateEventWhenPlanAlreadyPublished() {
+        InMemorySchedulePlanDAO planDAO = new InMemorySchedulePlanDAO();
+        RecordingDomainEventPublisher eventPublisher = new RecordingDomainEventPublisher();
+        ScheduleService service = new ScheduleServiceImpl(planDAO, new InMemoryScheduleAssignmentDAO(), eventPublisher);
+        ScheduleDetailVO generated = service.generate(createGenerateScheduleDTO());
+
+        service.publish(generated.getPlanId());
+        ScheduleDetailVO publishedAgain = service.publish(generated.getPlanId());
+
+        assertThat(publishedAgain.getPlanStatus()).isEqualTo("PUBLISHED");
+        assertThat(eventPublisher.events).extracting(event -> event.eventType())
+            .containsExactly("SCHEDULE_PUBLISHED");
     }
 
     @Test
@@ -359,6 +376,25 @@ class ScheduleServiceImplTest {
     }
 
     @Test
+    void autoGenerateMatchesSkillNameWhenPositionUsesChineseSkillName() {
+        StubActivityClient activityClient = new StubActivityClient();
+        activityClient.positions = List.of(createPosition(20L, 10L, 1, "环境清洁",
+            LocalDateTime.of(2026, 8, 1, 9, 0), LocalDateTime.of(2026, 8, 1, 12, 0)));
+        activityClient.signups = List.of(createSignup(100L, 20L, 101L));
+        StubUserClient userClient = new StubUserClient();
+        userClient.volunteers = List.of(createUser(101L));
+        userClient.skills = List.of(createSkill(101L, "CLEANING", "环境清洁"));
+        ScheduleService service = new ScheduleServiceImpl(new InMemorySchedulePlanDAO(),
+            new InMemoryScheduleAssignmentDAO(), new RecordingDomainEventPublisher(), new AllowingScheduleLockManager(),
+            activityClient, userClient, new RecordingFreeVolunteerCacheManager());
+
+        ScheduleDetailVO detailVO = service.autoGenerate(createAutoGenerateScheduleDTO());
+
+        assertThat(detailVO.getAssignments()).extracting(assignment -> assignment.getUserId())
+            .containsExactly(101L);
+    }
+
+    @Test
     void autoGenerateAllowsRegenerationWhenSameActivityAssignmentExists() {
         InMemoryScheduleAssignmentDAO assignmentDAO = new InMemoryScheduleAssignmentDAO();
         ScheduleAssignmentDO existingAssignment = new ScheduleAssignmentDO();
@@ -406,6 +442,96 @@ class ScheduleServiceImplTest {
             .containsExactly(102L);
     }
 
+    @Test
+    void autoGenerateReportsDetailedReasonsWhenPositionCannotBeFilled() {
+        InMemoryScheduleAssignmentDAO assignmentDAO = new InMemoryScheduleAssignmentDAO();
+        ScheduleAssignmentDO existingAssignment = new ScheduleAssignmentDO();
+        existingAssignment.setPlanId(99L);
+        existingAssignment.setActivityId(999L);
+        existingAssignment.setAreaId(10L);
+        existingAssignment.setPositionId(99L);
+        existingAssignment.setUserId(103L);
+        existingAssignment.setWorkDate(LocalDate.of(2026, 8, 1));
+        existingAssignment.setStartTime(LocalDateTime.of(2026, 8, 1, 9, 30));
+        existingAssignment.setEndTime(LocalDateTime.of(2026, 8, 1, 11, 0));
+        existingAssignment.setAssignmentStatus("WAIT_CONFIRM");
+        assignmentDAO.insert(existingAssignment);
+        StubActivityClient activityClient = new StubActivityClient();
+        activityClient.positions = List.of(createPosition(20L, 10L, 2, "GUIDE",
+            LocalDateTime.of(2026, 8, 1, 9, 0), LocalDateTime.of(2026, 8, 1, 12, 0)));
+        activityClient.signups = List.of(createSignup(100L, 20L, 101L), createSignup(100L, 20L, 102L),
+            createSignup(100L, 20L, 103L));
+        StubUserClient userClient = new StubUserClient();
+        userClient.volunteers = List.of(createUser(101L, "王文川"), createUser(102L, "刘向阳"),
+            createUser(103L, "陈广东"));
+        userClient.skills = List.of(createSkill(101L, "GUIDE"), createSkill(102L, "SECURITY"),
+            createSkill(103L, "GUIDE"));
+        userClient.availabilities = List.of(
+            createAvailability(101L, LocalDateTime.of(2026, 8, 1, 13, 0), LocalDateTime.of(2026, 8, 1, 18, 0)),
+            createAvailability(102L, LocalDateTime.of(2026, 8, 1, 8, 0), LocalDateTime.of(2026, 8, 1, 13, 0)),
+            createAvailability(103L, LocalDateTime.of(2026, 8, 1, 8, 0), LocalDateTime.of(2026, 8, 1, 13, 0)));
+        ScheduleService service = new ScheduleServiceImpl(new InMemorySchedulePlanDAO(), assignmentDAO,
+            new RecordingDomainEventPublisher(), new AllowingScheduleLockManager(), activityClient, userClient,
+            new RecordingFreeVolunteerCacheManager());
+
+        assertThatThrownBy(() -> service.autoGenerate(createAutoGenerateScheduleDTO()))
+            .isInstanceOf(BusinessException.class)
+            .hasMessageContaining("岗位 20")
+            .hasMessageContaining("需要 2 人")
+            .hasMessageContaining("可排 0 人")
+            .hasMessageContaining("王文川：服务时间不覆盖岗位时间")
+            .hasMessageContaining("刘向阳：缺少岗位技能 GUIDE")
+            .hasMessageContaining("陈广东：与已有排班时间冲突");
+    }
+
+    @Test
+    void autoGenerateReturnsExistingPlanWhenAssignmentsAlreadyExistForActivity() {
+        InMemorySchedulePlanDAO planDAO = new InMemorySchedulePlanDAO();
+        InMemoryScheduleAssignmentDAO assignmentDAO = new InMemoryScheduleAssignmentDAO();
+        StubActivityClient activityClient = new StubActivityClient();
+        activityClient.positions = List.of(createPosition(20L, 10L, 1, null,
+            LocalDateTime.of(2026, 8, 1, 9, 0), LocalDateTime.of(2026, 8, 1, 12, 0)));
+        activityClient.signups = List.of(createSignup(100L, 20L, 101L), createSignup(100L, 20L, 102L));
+        StubUserClient userClient = new StubUserClient();
+        userClient.volunteers = List.of(createUser(101L), createUser(102L));
+        ScheduleService service = new ScheduleServiceImpl(planDAO, assignmentDAO, new RecordingDomainEventPublisher(),
+            new AllowingScheduleLockManager(), activityClient, userClient, new RecordingFreeVolunteerCacheManager());
+
+        ScheduleDetailVO first = service.autoGenerate(createAutoGenerateScheduleDTO());
+        ScheduleDetailVO second = service.autoGenerate(createAutoGenerateScheduleDTO());
+
+        assertThat(second.getPlanId()).isEqualTo(first.getPlanId());
+        assertThat(second.getAssignments()).extracting(assignment -> assignment.getUserId())
+            .containsExactly(101L);
+        assertThat(planDAO.plans).hasSize(1);
+        assertThat(assignmentDAO.assignments).hasSize(1);
+    }
+
+    @Test
+    void supplementAssignmentAddsConfirmedUserToLatestPlan() {
+        InMemorySchedulePlanDAO planDAO = new InMemorySchedulePlanDAO();
+        InMemoryScheduleAssignmentDAO assignmentDAO = new InMemoryScheduleAssignmentDAO();
+        StubActivityClient activityClient = new StubActivityClient();
+        PositionDTO positionDTO = createPosition(20L, 10L, 2, "GUIDE",
+            LocalDateTime.of(2026, 8, 1, 9, 0), LocalDateTime.of(2026, 8, 1, 12, 0));
+        activityClient.positions = List.of(positionDTO);
+        StubUserClient userClient = new StubUserClient();
+        userClient.volunteers = List.of(createUser(101L), createUser(102L));
+        ScheduleService service = new ScheduleServiceImpl(planDAO, assignmentDAO, new RecordingDomainEventPublisher(),
+            new AllowingScheduleLockManager(), activityClient, userClient, new RecordingFreeVolunteerCacheManager());
+        ScheduleDetailVO first = service.generate(createGenerateScheduleDTO());
+        SupplementScheduleAssignmentDTO dto = createSupplementDTO(100L, 10L, 20L, 102L);
+
+        ScheduleDetailVO detailVO = service.supplementAssignment(dto);
+
+        assertThat(detailVO.getPlanId()).isEqualTo(first.getPlanId());
+        assertThat(detailVO.getAssignments()).extracting(assignment -> assignment.getUserId())
+            .containsExactly(30L, 102L);
+        assertThat(detailVO.getAssignments()).filteredOn(assignment -> assignment.getUserId().equals(102L))
+            .extracting(ScheduleAssignmentVO::getAssignmentStatus)
+            .containsExactly("CONFIRMED");
+    }
+
     private GenerateScheduleDTO createGenerateScheduleDTO() {
         GenerateScheduleDTO dto = new GenerateScheduleDTO();
         dto.setActivityId(100L);
@@ -434,6 +560,16 @@ class ScheduleServiceImplTest {
         return dto;
     }
 
+    private SupplementScheduleAssignmentDTO createSupplementDTO(Long activityId, Long areaId, Long positionId,
+                                                                Long userId) {
+        SupplementScheduleAssignmentDTO dto = new SupplementScheduleAssignmentDTO();
+        dto.setActivityId(activityId);
+        dto.setAreaId(areaId);
+        dto.setPositionId(positionId);
+        dto.setUserId(userId);
+        return dto;
+    }
+
     private PositionDTO createPosition(Long id, Long areaId, Integer needCount, String skillRequirement,
                                        LocalDateTime startTime, LocalDateTime endTime) {
         PositionDTO dto = new PositionDTO();
@@ -450,16 +586,27 @@ class ScheduleServiceImplTest {
     private UserDTO createUser(Long id) {
         UserDTO dto = new UserDTO();
         dto.setId(id);
+        dto.setRealName("志愿者" + id);
         dto.setUserType("VOLUNTEER");
         dto.setAuthStatus("PASSED");
         return dto;
     }
 
+    private UserDTO createUser(Long id, String realName) {
+        UserDTO dto = createUser(id);
+        dto.setRealName(realName);
+        return dto;
+    }
+
     private UserSkillDTO createSkill(Long userId, String skillCode) {
+        return createSkill(userId, skillCode, skillCode);
+    }
+
+    private UserSkillDTO createSkill(Long userId, String skillCode, String skillName) {
         UserSkillDTO dto = new UserSkillDTO();
         dto.setUserId(userId);
         dto.setSkillCode(skillCode);
-        dto.setSkillName(skillCode);
+        dto.setSkillName(skillName);
         return dto;
     }
 
@@ -674,7 +821,10 @@ class ScheduleServiceImplTest {
 
         @Override
         public Result<PositionDTO> getPosition(Long id) {
-            return Result.success();
+            return Result.success(positions.stream()
+                .filter(position -> id.equals(position.getId()))
+                .findFirst()
+                .orElse(null));
         }
 
         @Override

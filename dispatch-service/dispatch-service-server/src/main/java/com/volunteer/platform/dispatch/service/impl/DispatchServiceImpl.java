@@ -1,5 +1,7 @@
 package com.volunteer.platform.dispatch.service.impl;
 
+import com.volunteer.platform.activity.client.api.ActivityClient;
+import com.volunteer.platform.activity.client.dto.ActivitySignupDTO;
 import com.volunteer.platform.ai.client.api.AiSchedulerClient;
 import com.volunteer.platform.ai.client.dto.AiCandidateDTO;
 import com.volunteer.platform.ai.client.dto.AiRecommendationDTO;
@@ -24,6 +26,7 @@ import com.volunteer.platform.mq.RabbitDomainEventNames;
 import com.volunteer.platform.schedule.client.api.ScheduleClient;
 import com.volunteer.platform.schedule.client.dto.ScheduleAssignmentDTO;
 import com.volunteer.platform.schedule.client.dto.ScheduleDTO;
+import com.volunteer.platform.schedule.client.dto.SupplementScheduleAssignmentDTO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -53,6 +56,10 @@ public class DispatchServiceImpl implements DispatchService {
 
     private static final String RECOMMENDED_STATUS = "RECOMMENDED";
 
+    private static final String ACCEPTED_STATUS = "ACCEPTED";
+
+    private static final String SIGNUP_APPROVED_STATUS = "APPROVED";
+
     private final DispatchTaskDAO dispatchTaskDAO;
 
     private final DispatchRecommendationDAO dispatchRecommendationDAO;
@@ -65,12 +72,25 @@ public class DispatchServiceImpl implements DispatchService {
 
     private final ScheduleClient scheduleClient;
 
+    private final ActivityClient activityClient;
+
     public DispatchServiceImpl(DispatchTaskDAO dispatchTaskDAO,
                                DispatchRecommendationDAO dispatchRecommendationDAO,
                                DomainEventPublisher domainEventPublisher,
                                LocationClient locationClient,
                                AiSchedulerClient aiSchedulerClient) {
-        this(dispatchTaskDAO, dispatchRecommendationDAO, domainEventPublisher, locationClient, aiSchedulerClient, null);
+        this(dispatchTaskDAO, dispatchRecommendationDAO, domainEventPublisher, locationClient, aiSchedulerClient, null,
+            null);
+    }
+
+    public DispatchServiceImpl(DispatchTaskDAO dispatchTaskDAO,
+                               DispatchRecommendationDAO dispatchRecommendationDAO,
+                               DomainEventPublisher domainEventPublisher,
+                               LocationClient locationClient,
+                               AiSchedulerClient aiSchedulerClient,
+                               ScheduleClient scheduleClient) {
+        this(dispatchTaskDAO, dispatchRecommendationDAO, domainEventPublisher, locationClient, aiSchedulerClient,
+            scheduleClient, null);
     }
 
     @Autowired
@@ -79,13 +99,15 @@ public class DispatchServiceImpl implements DispatchService {
                                DomainEventPublisher domainEventPublisher,
                                LocationClient locationClient,
                                AiSchedulerClient aiSchedulerClient,
-                               ScheduleClient scheduleClient) {
+                               ScheduleClient scheduleClient,
+                               ActivityClient activityClient) {
         this.dispatchTaskDAO = dispatchTaskDAO;
         this.dispatchRecommendationDAO = dispatchRecommendationDAO;
         this.domainEventPublisher = domainEventPublisher;
         this.locationClient = locationClient;
         this.aiSchedulerClient = aiSchedulerClient;
         this.scheduleClient = scheduleClient;
+        this.activityClient = activityClient;
     }
 
     @Override
@@ -94,7 +116,8 @@ public class DispatchServiceImpl implements DispatchService {
         validate(dto);
         DispatchTaskDO taskDO = createTask(dto);
         dispatchTaskDAO.insert(taskDO);
-        List<DispatchCandidate> candidates = recommendCandidates(dto, resolveCandidates(dto));
+        List<DispatchCandidate> candidates = recommendCandidates(dto, filterAvailableCandidates(dto,
+            resolveCandidates(dto)));
         int recommendCount = Math.min(dto.getRequiredCount(), candidates.size());
         for (int i = 0; i < recommendCount; i++) {
             dispatchRecommendationDAO.insert(createRecommendation(taskDO.getId(), candidates.get(i), i));
@@ -119,6 +142,27 @@ public class DispatchServiceImpl implements DispatchService {
         }
         List<DispatchRecommendationDO> recommendations = dispatchRecommendationDAO.selectByTaskId(id);
         return toResultVO(taskDO, recommendations);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public DispatchResultVO acceptRecommendation(Long recommendationId) {
+        DispatchRecommendationDO recommendationDO = dispatchRecommendationDAO.selectById(recommendationId);
+        if (recommendationDO == null) {
+            throw new BusinessException(404, "dispatch recommendation not found");
+        }
+        DispatchTaskDO taskDO = dispatchTaskDAO.selectById(recommendationDO.getDispatchTaskId());
+        if (taskDO == null) {
+            throw new BusinessException(404, "dispatch task not found");
+        }
+        if (!ACCEPTED_STATUS.equals(recommendationDO.getRecommendStatus())) {
+            supplementSchedule(taskDO, recommendationDO.getUserId());
+            DispatchRecommendationDO updateDO = new DispatchRecommendationDO();
+            updateDO.setId(recommendationId);
+            updateDO.setRecommendStatus(ACCEPTED_STATUS);
+            dispatchRecommendationDAO.updateStatus(updateDO);
+        }
+        return getResult(taskDO.getId());
     }
 
     @Override
@@ -169,6 +213,21 @@ public class DispatchServiceImpl implements DispatchService {
         return result.getData();
     }
 
+    private void supplementSchedule(DispatchTaskDO taskDO, Long userId) {
+        if (scheduleClient == null) {
+            throw new BusinessException(500, "schedule client is required");
+        }
+        SupplementScheduleAssignmentDTO supplementDTO = new SupplementScheduleAssignmentDTO();
+        supplementDTO.setActivityId(taskDO.getActivityId());
+        supplementDTO.setAreaId(taskDO.getAreaId());
+        supplementDTO.setPositionId(taskDO.getPositionId());
+        supplementDTO.setUserId(userId);
+        Result<ScheduleDTO> result = scheduleClient.supplementAssignment(supplementDTO);
+        if (result == null || !result.isSuccess() || result.getData() == null) {
+            throw new BusinessException(500, "supplement schedule failed");
+        }
+    }
+
     private Set<Long> listCheckedInAssignmentIds(Long activityId, List<ScheduleAssignmentDTO> assignments) {
         Set<Long> checkedInAssignmentIds = new HashSet<>();
         for (ScheduleAssignmentDTO assignment : assignments) {
@@ -207,8 +266,35 @@ public class DispatchServiceImpl implements DispatchService {
         executeDTO.setLongitude(dto.getLongitude());
         executeDTO.setLatitude(dto.getLatitude());
         executeDTO.setRadiusMeter(dto.getRadiusMeter());
-        executeDTO.setCandidateUserIds(listNearbyCandidateUserIds(dto, assignedUserIds));
+        executeDTO.setCandidateUserIds(listShortageCandidateUserIds(dto, firstAssignment.getPositionId(),
+            assignedUserIds));
         return execute(executeDTO);
+    }
+
+    private List<Long> listShortageCandidateUserIds(DetectShortageDTO dto, Long positionId, List<Long> assignedUserIds) {
+        LinkedHashSet<Long> candidateUserIds = new LinkedHashSet<>();
+        candidateUserIds.addAll(listApprovedUnscheduledSignupUserIds(dto.getActivityId(), positionId, assignedUserIds));
+        candidateUserIds.addAll(listNearbyCandidateUserIds(dto, assignedUserIds));
+        return candidateUserIds.stream().toList();
+    }
+
+    private List<Long> listApprovedUnscheduledSignupUserIds(Long activityId, Long positionId, List<Long> assignedUserIds) {
+        if (activityClient == null) {
+            return Collections.emptyList();
+        }
+        Result<List<ActivitySignupDTO>> result = activityClient.listSignups(activityId, SIGNUP_APPROVED_STATUS);
+        if (result == null || !result.isSuccess() || result.getData() == null) {
+            return Collections.emptyList();
+        }
+        Set<Long> assignedUserIdSet = new HashSet<>(assignedUserIds);
+        return result.getData().stream()
+            .filter(signup -> signup.getUserId() != null)
+            .filter(signup -> signup.getPositionId() == null || signup.getPositionId().equals(positionId))
+            .map(ActivitySignupDTO::getUserId)
+            .filter(userId -> !assignedUserIdSet.contains(userId))
+            .collect(Collectors.toCollection(LinkedHashSet::new))
+            .stream()
+            .toList();
     }
 
     private List<Long> listNearbyCandidateUserIds(DetectShortageDTO dto, List<Long> assignedUserIds) {
@@ -258,6 +344,12 @@ public class DispatchServiceImpl implements DispatchService {
         if (!candidates.isEmpty()) {
             return candidates;
         }
+        List<Long> assignedUserIds = listAssignedUserIds(dto.getActivityId());
+        List<Long> signupCandidateUserIds = listApprovedUnscheduledSignupUserIds(dto.getActivityId(),
+            dto.getPositionId(), assignedUserIds);
+        if (!signupCandidateUserIds.isEmpty()) {
+            return normalizeCandidates(signupCandidateUserIds);
+        }
         if (dto.getLongitude() == null || dto.getLatitude() == null || dto.getRadiusMeter() == null) {
             return Collections.emptyList();
         }
@@ -266,14 +358,85 @@ public class DispatchServiceImpl implements DispatchService {
         if (nearbyResult == null || !nearbyResult.isSuccess() || nearbyResult.getData() == null) {
             return Collections.emptyList();
         }
+        Set<Long> assignedUserIdSet = new HashSet<>(assignedUserIds);
         return nearbyResult.getData().stream()
             .filter(nearbyUser -> nearbyUser.getUserId() != null)
+            .filter(nearbyUser -> !assignedUserIdSet.contains(nearbyUser.getUserId()))
             .map(nearbyUser -> new DispatchCandidate(nearbyUser.getUserId(), nearbyUser.getDistanceMeter(), null))
             .collect(java.util.stream.Collectors.toMap(DispatchCandidate::userId, candidate -> candidate,
                 (oldCandidate, newCandidate) -> oldCandidate, java.util.LinkedHashMap::new))
             .values()
             .stream()
             .toList();
+    }
+
+    private List<DispatchCandidate> filterAvailableCandidates(ExecuteDispatchDTO dto, List<DispatchCandidate> candidates) {
+        if (scheduleClient == null || candidates.isEmpty()) {
+            return candidates;
+        }
+        TimeWindow targetWindow = resolveTargetTimeWindow(dto);
+        if (targetWindow == null) {
+            return candidates;
+        }
+        return candidates.stream()
+            .filter(candidate -> !hasOverlappingSchedule(candidate.userId(), targetWindow))
+            .toList();
+    }
+
+    private TimeWindow resolveTargetTimeWindow(ExecuteDispatchDTO dto) {
+        try {
+            Result<ScheduleDTO> result = scheduleClient.getActivityDetail(dto.getActivityId());
+            if (result == null || !result.isSuccess() || result.getData() == null
+                || result.getData().getAssignments() == null) {
+                return null;
+            }
+            return result.getData().getAssignments().stream()
+                .filter(assignment -> dto.getPositionId().equals(assignment.getPositionId()))
+                .filter(assignment -> assignment.getWorkDate() != null && assignment.getStartTime() != null
+                    && assignment.getEndTime() != null)
+                .findFirst()
+                .map(assignment -> new TimeWindow(assignment.getWorkDate(), assignment.getStartTime(),
+                    assignment.getEndTime()))
+                .orElse(null);
+        } catch (RuntimeException exception) {
+            return null;
+        }
+    }
+
+    private boolean hasOverlappingSchedule(Long userId, TimeWindow targetWindow) {
+        try {
+            Result<List<ScheduleAssignmentDTO>> result = scheduleClient.listUserAssignments(userId);
+            if (result == null || !result.isSuccess() || result.getData() == null) {
+                return false;
+            }
+            return result.getData().stream()
+                .filter(assignment -> targetWindow.workDate().equals(assignment.getWorkDate()))
+                .filter(assignment -> assignment.getStartTime() != null && assignment.getEndTime() != null)
+                .anyMatch(assignment -> assignment.getStartTime().isBefore(targetWindow.endTime())
+                    && targetWindow.startTime().isBefore(assignment.getEndTime()));
+        } catch (RuntimeException exception) {
+            return false;
+        }
+    }
+
+    private List<Long> listAssignedUserIds(Long activityId) {
+        if (scheduleClient == null) {
+            return Collections.emptyList();
+        }
+        try {
+            Result<ScheduleDTO> result = scheduleClient.getActivityDetail(activityId);
+            if (result == null || !result.isSuccess() || result.getData() == null
+                || result.getData().getAssignments() == null) {
+                return Collections.emptyList();
+            }
+            return result.getData().getAssignments().stream()
+                .map(ScheduleAssignmentDTO::getUserId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        } catch (RuntimeException exception) {
+            return Collections.emptyList();
+        }
     }
 
     private List<DispatchCandidate> recommendCandidates(ExecuteDispatchDTO dto, List<DispatchCandidate> candidates) {
@@ -387,5 +550,8 @@ public class DispatchServiceImpl implements DispatchService {
     }
 
     private record DispatchCandidate(Long userId, BigDecimal distanceMeter, BigDecimal matchScore) {
+    }
+
+    private record TimeWindow(java.time.LocalDate workDate, LocalDateTime startTime, LocalDateTime endTime) {
     }
 }

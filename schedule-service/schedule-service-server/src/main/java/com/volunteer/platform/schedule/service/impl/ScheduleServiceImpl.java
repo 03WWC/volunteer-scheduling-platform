@@ -18,6 +18,7 @@ import com.volunteer.platform.schedule.dto.GenerateScheduleDTO;
 import com.volunteer.platform.schedule.dto.ScheduleAssignmentDTO;
 import com.volunteer.platform.schedule.entity.ScheduleAssignmentDO;
 import com.volunteer.platform.schedule.entity.SchedulePlanDO;
+import com.volunteer.platform.schedule.client.dto.SupplementScheduleAssignmentDTO;
 import com.volunteer.platform.schedule.manager.FreeVolunteerCacheManager;
 import com.volunteer.platform.schedule.manager.ScheduleLockManager;
 import com.volunteer.platform.schedule.service.ScheduleService;
@@ -138,15 +139,38 @@ public class ScheduleServiceImpl implements ScheduleService {
     @Override
     public ScheduleDetailVO autoGenerate(AutoGenerateScheduleDTO dto) {
         validateAutoGenerate(dto);
-        List<PositionDTO> positions = listPositions(dto.getActivityId());
-        List<ActivitySignupDTO> signups = listApprovedSignups(dto.getActivityId());
-        List<UserDTO> volunteers = listFreeVolunteers(positions, signups);
-        GenerateScheduleDTO generateDTO = new GenerateScheduleDTO();
-        generateDTO.setActivityId(dto.getActivityId());
-        generateDTO.setPlanName(dto.getPlanName());
-        generateDTO.setGeneratedBy(dto.getGeneratedBy());
-        generateDTO.setAssignments(buildAssignments(dto.getActivityId(), positions, volunteers, signups));
-        return generate(generateDTO, false);
+        if (!tryLock(dto.getActivityId())) {
+            throw new BusinessException(409, "schedule generation in progress");
+        }
+        try {
+            ScheduleDetailVO existingDetail = findExistingScheduleDetail(dto.getActivityId());
+            if (existingDetail != null) {
+                return existingDetail;
+            }
+            List<PositionDTO> positions = listPositions(dto.getActivityId());
+            List<ActivitySignupDTO> signups = listApprovedSignups(dto.getActivityId());
+            List<UserDTO> volunteers = listFreeVolunteers(positions, signups);
+            GenerateScheduleDTO generateDTO = new GenerateScheduleDTO();
+            generateDTO.setActivityId(dto.getActivityId());
+            generateDTO.setPlanName(dto.getPlanName());
+            generateDTO.setGeneratedBy(dto.getGeneratedBy());
+            generateDTO.setAssignments(buildAssignments(dto.getActivityId(), positions, volunteers, signups));
+            return doGenerate(generateDTO, false);
+        } finally {
+            unlock(dto.getActivityId());
+        }
+    }
+
+    private ScheduleDetailVO findExistingScheduleDetail(Long activityId) {
+        SchedulePlanDO latestPlan = schedulePlanDAO.selectLatestByActivityId(activityId);
+        if (latestPlan == null) {
+            return null;
+        }
+        List<ScheduleAssignmentDO> assignments = scheduleAssignmentDAO.selectByPlanId(latestPlan.getId());
+        if (assignments.isEmpty()) {
+            return null;
+        }
+        return buildDetail(latestPlan, assignments);
     }
 
     private boolean tryLock(Long activityId) {
@@ -239,13 +263,69 @@ public class ScheduleServiceImpl implements ScheduleService {
                 assignedCount++;
             }
             if (assignedCount < position.getNeedCount()) {
-                throw new BusinessException(404, "not enough available volunteer for position");
+                throw new BusinessException(404,
+                    buildAutoScheduleFailureMessage(activityId, position, volunteers, signups, assignments,
+                        assignedCount));
             }
         }
         if (assignments.isEmpty()) {
             throw new BusinessException(404, "no available volunteer for schedule");
         }
         return assignments;
+    }
+
+    private String buildAutoScheduleFailureMessage(Long activityId, PositionDTO position, List<UserDTO> volunteers,
+                                                   List<ActivitySignupDTO> signups,
+                                                   List<ScheduleAssignmentDTO> assignments, int assignedCount) {
+        List<String> reasons = volunteers.stream()
+            .map(volunteer -> buildVolunteerBlockReason(activityId, position, volunteer, signups, assignments))
+            .filter(Objects::nonNull)
+            .limit(8)
+            .toList();
+        String detail = reasons.isEmpty() ? "暂无可用志愿者，请检查报名审核、技能标签、服务时间或历史排班。"
+            : String.join("；", reasons);
+        return "岗位 " + positionLabel(position) + " 自动排班失败：需要 " + position.getNeedCount()
+            + " 人，可排 " + assignedCount + " 人。未排原因：" + detail;
+    }
+
+    private String buildVolunteerBlockReason(Long activityId, PositionDTO position, UserDTO volunteer,
+                                             List<ActivitySignupDTO> signups,
+                                             List<ScheduleAssignmentDTO> assignments) {
+        Long userId = volunteer.getId();
+        if (!hasApprovedSignup(userId, position, signups)) {
+            return volunteerLabel(volunteer) + "：未通过该岗位报名";
+        }
+        if (!isAvailableForPosition(userId, position)) {
+            return volunteerLabel(volunteer) + "：服务时间不覆盖岗位时间";
+        }
+        if (!matchesSkill(userId, position.getSkillRequirement())) {
+            return volunteerLabel(volunteer) + "：缺少岗位技能 " + position.getSkillRequirement().trim();
+        }
+        ScheduleAssignmentDTO assignmentDTO = toAutoAssignmentDTO(position, userId);
+        if (hasTimeConflict(assignments, assignmentDTO)) {
+            return volunteerLabel(volunteer) + "：与本次排班时间冲突";
+        }
+        if (hasExistingTimeConflict(activityId, assignmentDTO)) {
+            return volunteerLabel(volunteer) + "：与已有排班时间冲突";
+        }
+        return null;
+    }
+
+    private String positionLabel(PositionDTO position) {
+        if (position.getName() == null || position.getName().isBlank()) {
+            return String.valueOf(position.getId());
+        }
+        return position.getName() + "（" + position.getId() + "）";
+    }
+
+    private String volunteerLabel(UserDTO volunteer) {
+        if (volunteer.getRealName() != null && !volunteer.getRealName().isBlank()) {
+            return volunteer.getRealName();
+        }
+        if (volunteer.getUsername() != null && !volunteer.getUsername().isBlank()) {
+            return volunteer.getUsername();
+        }
+        return "志愿者 " + volunteer.getId();
     }
 
     private List<UserDTO> sortVolunteersForPosition(Long activityId, PositionDTO position, List<UserDTO> volunteers,
@@ -326,11 +406,14 @@ public class ScheduleServiceImpl implements ScheduleService {
             return false;
         }
         return result.getData().stream()
-            .map(UserSkillDTO::getSkillCode)
-            .filter(Objects::nonNull)
-            .map(String::trim)
-            .filter(skillCode -> !skillCode.isBlank())
-            .anyMatch(normalizedRequirement::equalsIgnoreCase);
+            .anyMatch(skill -> matchesSkillValue(normalizedRequirement, skill.getSkillCode())
+                || matchesSkillValue(normalizedRequirement, skill.getSkillName()));
+    }
+
+    private boolean matchesSkillValue(String normalizedRequirement, String skillValue) {
+        return skillValue != null
+            && !skillValue.trim().isBlank()
+            && normalizedRequirement.equalsIgnoreCase(skillValue.trim());
     }
 
     private boolean isNoSkillLimit(String skillRequirement) {
@@ -441,6 +524,9 @@ public class ScheduleServiceImpl implements ScheduleService {
         if (planDO == null) {
             throw new BusinessException(NOT_FOUND_CODE, "schedule plan not found");
         }
+        if (PUBLISHED_STATUS.equals(planDO.getPlanStatus())) {
+            return buildDetail(planDO);
+        }
         SchedulePlanDO updateDO = new SchedulePlanDO();
         updateDO.setId(planId);
         updateDO.setPlanStatus(PUBLISHED_STATUS);
@@ -460,6 +546,58 @@ public class ScheduleServiceImpl implements ScheduleService {
         assignmentDO.setId(assignmentId);
         assignmentDO.setAssignmentStatus(CONFIRMED_STATUS);
         scheduleAssignmentDAO.updateStatus(assignmentDO);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public ScheduleDetailVO supplementAssignment(SupplementScheduleAssignmentDTO dto) {
+        validateSupplementAssignment(dto);
+        SchedulePlanDO latestPlan = schedulePlanDAO.selectLatestByActivityId(dto.getActivityId());
+        if (latestPlan == null) {
+            throw new BusinessException(NOT_FOUND_CODE, "schedule plan not found");
+        }
+        PositionDTO position = queryPosition(dto.getActivityId(), dto.getPositionId());
+        ScheduleAssignmentDTO assignmentDTO = toAutoAssignmentDTO(position, dto.getUserId());
+        assignmentDTO.setAreaId(dto.getAreaId() == null ? position.getAreaId() : dto.getAreaId());
+        if (hasAnyExistingTimeConflict(assignmentDTO)) {
+            throw new BusinessException(409, "volunteer already has schedule in this time range");
+        }
+        ScheduleAssignmentDO assignmentDO = toAssignmentDO(dto.getActivityId(), latestPlan.getId(), assignmentDTO);
+        assignmentDO.setAssignmentStatus(CONFIRMED_STATUS);
+        scheduleAssignmentDAO.insert(assignmentDO);
+        return buildDetail(latestPlan);
+    }
+
+    private void validateSupplementAssignment(SupplementScheduleAssignmentDTO dto) {
+        if (dto == null || dto.getActivityId() == null || dto.getPositionId() == null || dto.getUserId() == null) {
+            throw new BusinessException(400, "supplement assignment target is required");
+        }
+        if (activityClient == null) {
+            throw new BusinessException(500, "activity client is required");
+        }
+    }
+
+    private PositionDTO queryPosition(Long activityId, Long positionId) {
+        Result<List<PositionDTO>> result = activityClient.getPositionList(activityId);
+        if (result == null || !result.isSuccess() || result.getData() == null) {
+            throw new BusinessException(NOT_FOUND_CODE, "position not found");
+        }
+        PositionDTO position = result.getData().stream()
+            .filter(item -> positionId.equals(item.getId()))
+            .findFirst()
+            .orElseThrow(() -> new BusinessException(NOT_FOUND_CODE, "position not found"));
+        if (position.getId() == null || position.getStartTime() == null || position.getEndTime() == null
+            || position.getAreaId() == null) {
+            throw new BusinessException(400, "position schedule time is incomplete");
+        }
+        return position;
+    }
+
+    private boolean hasAnyExistingTimeConflict(ScheduleAssignmentDTO assignmentDTO) {
+        return scheduleAssignmentDAO.selectByUserId(assignmentDTO.getUserId()).stream()
+            .filter(assignment -> assignmentDTO.getWorkDate().equals(assignment.getWorkDate()))
+            .anyMatch(assignment -> assignment.getStartTime().isBefore(assignmentDTO.getEndTime())
+                && assignmentDTO.getStartTime().isBefore(assignment.getEndTime()));
     }
 
     private String buildPlanNo(Long activityId) {
@@ -482,13 +620,17 @@ public class ScheduleServiceImpl implements ScheduleService {
     }
 
     private ScheduleDetailVO buildDetail(SchedulePlanDO planDO) {
+        return buildDetail(planDO, scheduleAssignmentDAO.selectByPlanId(planDO.getId()));
+    }
+
+    private ScheduleDetailVO buildDetail(SchedulePlanDO planDO, List<ScheduleAssignmentDO> assignments) {
         ScheduleDetailVO detailVO = new ScheduleDetailVO();
         detailVO.setPlanId(planDO.getId());
         detailVO.setActivityId(planDO.getActivityId());
         detailVO.setPlanNo(planDO.getPlanNo());
         detailVO.setPlanName(planDO.getPlanName());
         detailVO.setPlanStatus(planDO.getPlanStatus());
-        detailVO.setAssignments(scheduleAssignmentDAO.selectByPlanId(planDO.getId()).stream()
+        detailVO.setAssignments(assignments.stream()
             .map(this::toAssignmentVO)
             .toList());
         return detailVO;

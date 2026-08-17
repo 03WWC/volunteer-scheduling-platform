@@ -8,6 +8,7 @@ import type {
   ActivityRecord,
   AreaRecord,
   CheckinRecord,
+  DispatchRecommendationRecord,
   DispatchRecord,
   PageResult,
   PositionRecord,
@@ -167,6 +168,7 @@ async function executeSelectedDispatch() {
       candidateUserIds: parseCandidateUserIds(advancedForm.candidateUserIdsText),
     })
     pushTask(task)
+    await loadWorkbench()
     ElMessage.success('补位调度已生成')
   } finally {
     loading.value = false
@@ -189,6 +191,7 @@ async function detectShortage() {
     })
     tasks.value = result
     selectedTask.value = result[0]
+    await loadWorkbench()
     ElMessage.success(result.length ? `已生成 ${result.length} 条补位调度` : '暂未发现签到缺口')
   } finally {
     loading.value = false
@@ -211,6 +214,25 @@ function pushTask(task: DispatchRecord) {
 
 function showTask(row: DispatchRecord) {
   selectedTask.value = row
+}
+
+async function acceptRecommendation(row: DispatchRecommendationRecord) {
+  if (!row.id) {
+    return
+  }
+  if (row.recommendStatus === 'ACCEPTED') {
+    ElMessage.info('该推荐人员已采纳')
+    return
+  }
+  loading.value = true
+  try {
+    const task = await dispatchApi.acceptRecommendation(row.id)
+    pushTask(task)
+    await loadWorkbench()
+    ElMessage.success('已采纳补位，志愿者已加入排班')
+  } finally {
+    loading.value = false
+  }
 }
 
 function buildInsight(position: PositionRecord): PositionInsight {
@@ -314,10 +336,16 @@ function dispatchStatusLabel(status?: string) {
 function recommendStatusLabel(status?: string) {
   const labels: Record<string, string> = {
     RECOMMENDED: '已推荐',
-    ACCEPTED: '已接受',
+    ACCEPTED: '已采纳',
     REJECTED: '已拒绝',
   }
   return status ? labels[status] || status : '-'
+}
+
+function recommendTagType(status?: string) {
+  if (status === 'ACCEPTED') return 'success'
+  if (status === 'REJECTED') return 'danger'
+  return 'info'
 }
 
 function fmt(value?: string) {
@@ -519,7 +547,23 @@ function fmt(value?: string) {
         <el-table-column prop="distanceMeter" label="距离米" width="120" />
         <el-table-column prop="matchScore" label="匹配分" width="120" />
         <el-table-column label="推荐状态" min-width="130">
-          <template #default="{ row }">{{ recommendStatusLabel(row.recommendStatus) }}</template>
+          <template #default="{ row }">
+            <el-tag :type="recommendTagType(row.recommendStatus)" effect="light">
+              {{ recommendStatusLabel(row.recommendStatus) }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="140" fixed="right">
+          <template #default="{ row }">
+            <el-button
+              link
+              type="primary"
+              :disabled="row.recommendStatus === 'ACCEPTED'"
+              @click="acceptRecommendation(row)"
+            >
+              {{ row.recommendStatus === 'ACCEPTED' ? '已补上' : '采纳补位' }}
+            </el-button>
+          </template>
         </el-table-column>
       </el-table>
     </div>
