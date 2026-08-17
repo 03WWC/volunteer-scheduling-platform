@@ -7,6 +7,8 @@ import com.volunteer.platform.location.client.dto.CheckinQrCodeDTO;
 import com.volunteer.platform.location.client.dto.LocationDTO;
 import com.volunteer.platform.schedule.client.api.ScheduleClient;
 import com.volunteer.platform.schedule.client.dto.ScheduleAssignmentDTO;
+import com.volunteer.platform.schedule.client.dto.ScheduleDTO;
+import com.volunteer.platform.schedule.client.dto.SupplementScheduleAssignmentDTO;
 import com.volunteer.platform.common.api.Result;
 import com.volunteer.platform.location.dao.CheckinRecordDAO;
 import com.volunteer.platform.location.dao.LocationRecordDAO;
@@ -401,6 +403,11 @@ class LocationServiceImplTest {
             return Result.success(assignments.stream()
                 .filter(assignment -> assignment.getUserId().equals(userId))
                 .toList());
+        }
+
+        @Override
+        public Result<ScheduleDTO> supplementAssignment(SupplementScheduleAssignmentDTO dto) {
+            return Result.success();
         }
     }
 }

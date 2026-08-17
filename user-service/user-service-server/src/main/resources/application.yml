@@ -6,13 +6,13 @@ spring:
     name: user-service
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://127.0.0.1:13306/volunteer_platform?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false}
-    username: ${SPRING_DATASOURCE_USERNAME:root}
-    password: ${SPRING_DATASOURCE_PASSWORD:change-me}
+    url: jdbc:mysql://47.120.66.230:13306/volunteer_platform?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
+    username: root
+    password: Wwc17325779731
   cloud:
     nacos:
       discovery:
-        server-addr: ${SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR:127.0.0.1:8848}
+        server-addr: 47.120.66.230:8848
 
 mybatis:
   mapper-locations: classpath*:mapper/**/*.xml
@@ -26,9 +26,9 @@ platform:
   admin:
     user-id: 1
     account: admin
-    password: ${PLATFORM_ADMIN_PASSWORD:change-me}
+    password: Admin123456
     username: admin
     user-type: MANAGER
   wechat:
-    app-id: ${PLATFORM_WECHAT_APP_ID:}
-    app-secret: ${PLATFORM_WECHAT_APP_SECRET:}
+    app-id: wx9c4a6ebff70cec73
+    app-secret: 70644e270baa005d10885d8c21895530

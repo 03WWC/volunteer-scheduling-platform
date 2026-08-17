@@ -43,4 +43,24 @@
       AND is_deleted = 0
     ORDER BY match_score DESC, id ASC
   </select>
+
+  <select id="selectById" resultMap="DispatchRecommendationResultMap">
+    SELECT
+      id,
+      dispatch_task_id,
+      user_id,
+      distance_meter,
+      match_score,
+      recommend_status
+    FROM dispatch_recommendation
+    WHERE id = #{id}
+      AND is_deleted = 0
+  </select>
+
+  <update id="updateStatus" parameterType="com.volunteer.platform.dispatch.entity.DispatchRecommendationDO">
+    UPDATE dispatch_recommendation
+    SET recommend_status = #{recommendStatus}
+    WHERE id = #{id}
+      AND is_deleted = 0
+  </update>
 </mapper>

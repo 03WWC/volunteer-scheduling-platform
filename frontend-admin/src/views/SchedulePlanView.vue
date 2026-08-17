@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { MagicStick, Refresh, Search, Upload } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { activityApi, areaApi, positionApi, scheduleApi, volunteerApi } from '@/api/modules'
 import type {
   ActivityRecord,
@@ -26,6 +26,7 @@ const signups = ref<ActivitySignupRecord[]>([])
 const assignments = computed<ScheduleAssignmentRecord[]>(() => detail.value?.assignments || [])
 const selectedActivity = computed(() => activities.value.find((item) => item.id === activityId.value))
 const approvedSignups = computed(() => signups.value.filter((item) => item.signupStatus === 'APPROVED'))
+const canAutoGenerate = computed(() => !loading.value && !assignments.value.length)
 const areaNameMap = computed(() => new Map(areas.value.map((item) => [item.id, item.name])))
 const positionNameMap = computed(() => new Map(positions.value.map((item) => [item.id, item.name])))
 const volunteerNameMap = computed(() => new Map(volunteers.value.map((item) => [
@@ -77,14 +78,41 @@ async function autoGenerate() {
     ElMessage.warning('当前活动没有已通过报名，请先到“报名审核”通过志愿者报名')
     return
   }
+  if (assignments.value.length) {
+    ElMessage.info('当前活动已有排班安排，不会重复生成。需要重排时请先清理原计划。')
+    return
+  }
   loading.value = true
   try {
     const activityName = selectedActivity.value?.name || `活动 ${activityId.value}`
-    detail.value = await scheduleApi.autoGenerate({ activityId: activityId.value, planName: `${activityName} 自动排班`, generatedBy: 1 })
+    detail.value = await scheduleApi.autoGenerate(
+      { activityId: activityId.value, planName: `${activityName} 自动排班`, generatedBy: 1 },
+      { silentError: true },
+    )
     ElMessage.success('排班已生成')
+  } catch (error) {
+    await showAutoGenerateFailure(error)
   } finally {
     loading.value = false
   }
+}
+
+async function showAutoGenerateFailure(error: unknown) {
+  await ElMessageBox.alert(getErrorMessage(error), '自动排班失败诊断', {
+    confirmButtonText: '知道了',
+    type: 'warning',
+    customClass: 'schedule-diagnosis-dialog',
+  }).catch(() => undefined)
+}
+
+function getErrorMessage(error: unknown) {
+  if (typeof error === 'object' && error !== null && 'response' in error) {
+    const response = (error as { response?: { data?: { message?: string } } }).response
+    if (response?.data?.message) {
+      return response.data.message
+    }
+  }
+  return error instanceof Error ? error.message : '自动排班失败，请检查岗位人数、报名审核、技能标签和服务时间。'
 }
 
 async function loadScheduleContext(id: number) {
@@ -158,7 +186,7 @@ function assignmentStatusLabel(status?: string) {
           <el-option v-for="item in activities" :key="item.id" :label="`${item.name}（${item.id}）`" :value="item.id" />
         </el-select>
         <el-button :icon="Search" @click="loadDetail">查询详情</el-button>
-        <el-button type="primary" :icon="MagicStick" @click="autoGenerate">自动排班</el-button>
+        <el-button type="primary" :icon="MagicStick" :disabled="!canAutoGenerate" :loading="loading" @click="autoGenerate">自动排班</el-button>
       </div>
       <div class="command-row">
         <el-button :icon="Refresh" @click="loadDetail">刷新</el-button>
@@ -173,6 +201,14 @@ function assignmentStatusLabel(status?: string) {
       show-icon
       :title="`排班条件：岗位 ${positions.length} 个，报名 ${signups.length} 条，已通过 ${approvedSignups.length} 条`"
       description="自动排班只会从已审核通过的报名志愿者中选择人员；如果已通过为 0，请先到报名审核处理。"
+    />
+    <el-alert
+      v-if="assignments.length"
+      class="schedule-prerequisite"
+      type="success"
+      :closable="false"
+      show-icon
+      title="当前活动已有排班，系统已阻止重复自动排班，避免重复通知志愿者。"
     />
 
     <div class="table-panel">
@@ -219,3 +255,10 @@ function assignmentStatusLabel(status?: string) {
     </div>
   </section>
 </template>
+
+<style scoped>
+:global(.schedule-diagnosis-dialog .el-message-box__message) {
+  white-space: pre-line;
+  line-height: 1.7;
+}
+</style>

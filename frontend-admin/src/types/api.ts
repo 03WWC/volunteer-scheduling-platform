@@ -213,6 +213,12 @@ export interface AuthSession {
   permissions?: string[]
 }
 
+export interface PublicOverviewRecord {
+  todayActivityCount: number
+  activeVolunteerCount: number
+  positionSatisfactionRate: number
+}
+
 export interface AdminRoleRecord {
   id: number
   roleCode: string

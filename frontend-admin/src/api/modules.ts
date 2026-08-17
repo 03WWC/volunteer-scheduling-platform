@@ -14,6 +14,7 @@ import type {
   MessageNoticeRecord,
   PageResult,
   PositionRecord,
+  PublicOverviewRecord,
   ScheduleDetailRecord,
   SettlementBillRecord,
   UserAvailabilityRecord,
@@ -25,6 +26,11 @@ import { request } from './request'
 export const authApi = {
   adminLogin: (data: { account: string; password: string }) =>
     request<AuthSession>({ url: '/auth/admin/login', method: 'POST', data }),
+}
+
+export const publicApi = {
+  overview: () =>
+    request<PublicOverviewRecord>({ url: '/public/overview', method: 'GET', silentError: true }),
 }
 
 export const adminApi = {
@@ -99,8 +105,13 @@ export const scheduleApi = {
       method: 'GET',
       silentError: options?.silentError,
     }),
-  autoGenerate: (data: Record<string, unknown>) =>
-    request<ScheduleDetailRecord>({ url: '/schedule/auto-generate', method: 'POST', data }),
+  autoGenerate: (data: Record<string, unknown>, options?: { silentError?: boolean }) =>
+    request<ScheduleDetailRecord>({
+      url: '/schedule/auto-generate',
+      method: 'POST',
+      data,
+      silentError: options?.silentError,
+    }),
   publish: (planId: number) =>
     request<ScheduleDetailRecord>({ url: `/schedule/${planId}/publish`, method: 'POST' }),
 }
@@ -112,6 +123,8 @@ export const dispatchApi = {
     request<DispatchRecord[]>({ url: '/dispatch/detect-shortage', method: 'POST', data }),
   result: (id: number) =>
     request<DispatchRecord>({ url: `/dispatch/${id}/result`, method: 'GET' }),
+  acceptRecommendation: (id: number) =>
+    request<DispatchRecord>({ url: `/dispatch/recommendations/${id}/accept`, method: 'POST' }),
 }
 
 export const aiApi = {

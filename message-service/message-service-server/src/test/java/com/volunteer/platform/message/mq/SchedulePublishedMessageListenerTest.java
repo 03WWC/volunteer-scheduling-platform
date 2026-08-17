@@ -7,6 +7,7 @@ import com.volunteer.platform.message.vo.MessageNoticeVO;
 import com.volunteer.platform.schedule.client.api.ScheduleClient;
 import com.volunteer.platform.schedule.client.dto.ScheduleAssignmentDTO;
 import com.volunteer.platform.schedule.client.dto.ScheduleDTO;
+import com.volunteer.platform.schedule.client.dto.SupplementScheduleAssignmentDTO;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
@@ -76,6 +77,11 @@ class SchedulePublishedMessageListenerTest {
         @Override
         public Result<List<ScheduleAssignmentDTO>> listUserAssignments(Long userId) {
             return Result.success(List.of());
+        }
+
+        @Override
+        public Result<ScheduleDTO> supplementAssignment(SupplementScheduleAssignmentDTO dto) {
+            return Result.success(scheduleDTO);
         }
 
         private static ScheduleDTO createScheduleDTO() {

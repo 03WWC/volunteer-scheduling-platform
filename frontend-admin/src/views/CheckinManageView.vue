@@ -26,7 +26,7 @@ interface PositionCheckinRow extends PositionRecord {
   endTime?: string
 }
 
-const QR_HISTORY_KEY = 'checkin-qrcode-history'
+const QR_HISTORY_KEY = 'checkin-qrcode-history-v2'
 const loading = ref(false)
 const activityLoading = ref(false)
 const activityId = ref<number>()
@@ -43,6 +43,7 @@ const volunteerNameMap = computed(() => new Map(volunteers.value.map((item) => [
   item.id,
   item.realName || item.nickname || item.username || `志愿者 ${item.id}`,
 ])))
+const assignmentMap = computed(() => new Map(assignments.value.map((item) => [item.id, item])))
 const assignmentsByPosition = computed(() => {
   const map = new Map<number, ScheduleAssignmentRecord[]>()
   assignments.value.forEach((item) => {
@@ -193,6 +194,21 @@ function volunteerLabel(userId?: number) {
   return volunteerNameMap.value.get(userId) || `志愿者 ${userId}`
 }
 
+function assignmentLabel(row: CheckinRecord) {
+  const assignment = assignmentMap.value.get(row.assignmentId)
+  const userName = volunteerLabel(assignment?.userId || row.userId)
+  const positionName = positionLabel(assignment?.positionId || row.positionId)
+  return `${userName} - ${positionName}`
+}
+
+function assignmentMeta(row: CheckinRecord) {
+  const assignment = assignmentMap.value.get(row.assignmentId)
+  const start = fmt(assignment?.startTime)
+  const end = fmt(assignment?.endTime)
+  const timeText = start !== '-' || end !== '-' ? ` · ${start} - ${end}` : ''
+  return `排班 ${row.assignmentId || '-'} / 岗位 ${row.positionId || '-'}${timeText}`
+}
+
 function checkinTypeLabel(type?: string) {
   return type === 'CHECK_OUT' ? '签退' : '签到'
 }
@@ -317,8 +333,13 @@ function fmt(value?: string) {
       </div>
       <el-table v-loading="loading" :data="checkins" row-key="id">
         <el-table-column prop="id" label="记录编号" width="110" />
-        <el-table-column label="安排" width="110">
-          <template #default="{ row }">安排 {{ row.assignmentId }}</template>
+        <el-table-column label="排班对象" min-width="240">
+          <template #default="{ row }">
+            <div class="primary-cell">
+              <strong>{{ assignmentLabel(row) }}</strong>
+              <span>{{ assignmentMeta(row) }}</span>
+            </div>
+          </template>
         </el-table-column>
         <el-table-column label="岗位" min-width="180">
           <template #default="{ row }">

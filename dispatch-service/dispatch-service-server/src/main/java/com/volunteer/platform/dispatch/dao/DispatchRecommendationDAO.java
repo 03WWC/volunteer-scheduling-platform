@@ -11,4 +11,8 @@ public interface DispatchRecommendationDAO {
     int insert(DispatchRecommendationDO recommendationDO);
 
     List<DispatchRecommendationDO> selectByTaskId(Long dispatchTaskId);
+
+    DispatchRecommendationDO selectById(Long id);
+
+    int updateStatus(DispatchRecommendationDO recommendationDO);
 }

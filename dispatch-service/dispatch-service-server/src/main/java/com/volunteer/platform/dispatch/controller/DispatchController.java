@@ -44,6 +44,11 @@ public class DispatchController {
             .toList());
     }
 
+    @PostMapping("/recommendations/{recommendationId}/accept")
+    public Result<DispatchDTO> acceptRecommendation(@PathVariable("recommendationId") Long recommendationId) {
+        return Result.success(toDispatchDTO(dispatchService.acceptRecommendation(recommendationId)));
+    }
+
     private DispatchDTO toDispatchDTO(DispatchResultVO resultVO) {
         DispatchDTO dispatchDTO = new DispatchDTO();
         dispatchDTO.setId(resultVO.getId());

@@ -7,7 +7,7 @@ public class AdminAuthProperties {
 
     private Long userId = 1L;
     private String account = "admin";
-    private String password = "change-me";
+    private String password = "Admin123456";
     private String username = "admin";
     private String userType = "MANAGER";
 

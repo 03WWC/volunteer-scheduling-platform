@@ -1,14 +1,25 @@
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Lock, User } from '@element-plus/icons-vue'
+import { publicApi } from '@/api/modules'
 import { useAuthStore } from '@/stores/auth'
+import type { PublicOverviewRecord } from '@/types/api'
+import { buildLoginMetrics } from './loginMetrics'
 
 const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
 const loading = ref(false)
+const overview = ref<PublicOverviewRecord>()
 const form = reactive({ account: 'admin', password: '' })
+const loginMetrics = computed(() => buildLoginMetrics(overview.value))
+
+onMounted(loadOverview)
+
+async function loadOverview() {
+  overview.value = await publicApi.overview().catch(() => undefined)
+}
 
 async function submit() {
   if (!form.account.trim() || !form.password.trim()) return
@@ -31,9 +42,7 @@ async function submit() {
         <h1>志愿者智能调度平台</h1>
         <p>让活动、岗位、人员和签到结算保持在同一套节奏里。</p>
         <div class="login-metrics">
-          <div><strong>24</strong><span>今日活动</span></div>
-          <div><strong>386</strong><span>在岗志愿者</span></div>
-          <div><strong>98.6%</strong><span>岗位满足率</span></div>
+          <div v-for="item in loginMetrics" :key="item.label"><strong>{{ item.value }}</strong><span>{{ item.label }}</span></div>
         </div>
       </div>
     </section>
